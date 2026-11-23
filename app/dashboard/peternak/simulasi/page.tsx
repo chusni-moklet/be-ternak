@@ -553,7 +553,7 @@ export default function LayerSimulationPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#060D0A] text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
+    <div className="h-screen bg-[#060D0A] text-slate-100 flex flex-col font-sans overflow-hidden selection:bg-emerald-500 selection:text-slate-950">
       <Navbar currentRegionName={`Kandang: ${currentUser.business_name}`} />
 
       {/* Mobile Toggle Header */}
@@ -583,8 +583,8 @@ export default function LayerSimulationPage() {
         {/* ================================================================= */}
         <aside
           className={`
-            fixed lg:static top-16 bottom-0 left-0 z-40
-            w-72 bg-[#0A1410] backdrop-blur-md
+            fixed lg:sticky top-16 lg:top-0 bottom-0 left-0 z-40
+            w-72 h-[calc(100vh-4rem)] bg-[#0A1410] backdrop-blur-md
             border-r border-[#1E352B] flex flex-col justify-between
             transition-transform duration-300 ease-in-out shrink-0
             ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
@@ -697,10 +697,18 @@ export default function LayerSimulationPage() {
           </div>
         </aside>
 
+        {/* Mobile Backdrop Overlay */}
+        {isMobileMenuOpen && (
+          <div
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="fixed inset-0 z-30 bg-black/60 backdrop-blur-xs lg:hidden"
+          />
+        )}
+
         {/* ================================================================= */}
         {/* MAIN SIMULATOR CONTENT                                            */}
         {/* ================================================================= */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        <main className="flex-1 h-full overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
           
           {/* Breadcrumb & Actions Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

@@ -222,7 +222,7 @@ export default function PeternakDashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#070d0b] text-slate-100 flex flex-col font-sans">
+    <div className="h-screen bg-[#070d0b] text-slate-100 flex flex-col font-sans overflow-hidden">
       <Navbar currentRegionName={`Kandang: ${currentUser.business_name}`} />
 
       {/* Mobile Menu Toggle Header (< lg) */}
@@ -258,8 +258,8 @@ export default function PeternakDashboardPage() {
         {/* ================================================================= */}
         <aside
           className={`
-            fixed lg:static top-16 bottom-0 left-0 z-40
-            w-72 bg-[#0a110e]/95 lg:bg-[#0a110e]/80 backdrop-blur-md
+            fixed lg:sticky top-16 lg:top-0 bottom-0 left-0 z-40
+            w-72 h-[calc(100vh-4rem)] bg-[#0a110e]/95 lg:bg-[#0a110e]/90 backdrop-blur-md
             border-r border-emerald-950/80 flex flex-col justify-between
             transition-transform duration-300 ease-in-out shrink-0
             ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
@@ -474,7 +474,7 @@ export default function PeternakDashboardPage() {
         {/* ================================================================= */}
         {/* MAIN CONTENT AREA (RIGHT)                                         */}
         {/* ================================================================= */}
-        <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6 max-w-7xl">
+        <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 space-y-6 max-w-7xl">
           {/* Toast Feedback */}
           {feedbackNotice && (
             <div className="p-4 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 flex items-center justify-between text-xs sm:text-sm font-medium shadow-lg">
