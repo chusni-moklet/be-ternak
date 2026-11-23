@@ -474,7 +474,7 @@ export default function PeternakDashboardPage() {
         {/* ================================================================= */}
         {/* MAIN CONTENT AREA (RIGHT)                                         */}
         {/* ================================================================= */}
-        <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 space-y-6 max-w-7xl">
+        <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 pb-20 lg:pb-6 space-y-6 max-w-7xl">
           {/* Toast Feedback */}
           {feedbackNotice && (
             <div className="p-4 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 flex items-center justify-between text-xs sm:text-sm font-medium shadow-lg">
@@ -582,7 +582,7 @@ export default function PeternakDashboardPage() {
                       {currentUser.subscription_status === 'active'
                         ? 'Anda memiliki akses penuh ke radius pencarian pakan 30 km, formulasi nutrisi AI tak terbatas, peringatan pencegahan heat stress otomatis, dan harga prioritas dari supplier terverifikasi.'
                         : currentUser.subscription_status === 'pending_verification'
-                        ? 'Tim Admin PetaPakan AI sedang memverifikasi bukti mutasi transfer Anda. Setelah terkonfirmasi sah, akun Anda akan otomatis aktif dengan centang hijau.'
+                        ? 'Tim Admin be-ternak sedang memverifikasi bukti mutasi transfer Anda. Setelah terkonfirmasi sah, akun Anda akan otomatis aktif dengan centang hijau.'
                         : 'Dapatkan akses formulasi ransum murah AI presisi tanpa batas, hubungi 100+ supplier pakan terverifikasi, dan pangkas hingga 40% biaya pakan harian kandang Anda.'}
                     </p>
                   </div>
@@ -800,7 +800,7 @@ export default function PeternakDashboardPage() {
                       </div>
 
                       <a
-                        href={`https://wa.me/?text=Halo%20saya%20peternak%20PetaPakan%20AI%20ingin%20memesan%20${encodeURIComponent(
+                        href={`https://wa.me/?text=Halo%20saya%20peternak%20be-ternak%20ingin%20memesan%20${encodeURIComponent(
                           feed.name
                         )}`}
                         target="_blank"
@@ -934,7 +934,7 @@ export default function PeternakDashboardPage() {
                   Pembayaran Biaya Langganan Peternak
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Aktifkan fitur pro dan dapatkan verifikasi resmi dari Admin PetaPakan AI
+                  Aktifkan fitur pro dan dapatkan verifikasi resmi dari Admin be-ternak
                 </p>
               </div>
               <button
@@ -988,10 +988,10 @@ export default function PeternakDashboardPage() {
 
               {/* Rekening Tujuan */}
               <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2 text-xs">
-                <span className="font-bold text-slate-200 block">Rekening Resmi PetaPakan AI:</span>
+                <span className="font-bold text-slate-200 block">Rekening Resmi be-ternak:</span>
                 <div className="space-y-1 text-slate-300">
-                  <p>• <strong>BCA:</strong> 8820-123-999 a.n PT PetaPakan Agritech</p>
-                  <p>• <strong>Mandiri:</strong> 144-00-9988-121 a.n PT PetaPakan Agritech</p>
+                  <p>• <strong>BCA:</strong> 8820-123-999 a.n PT be-ternak Agritech</p>
+                  <p>• <strong>Mandiri:</strong> 144-00-9988-121 a.n PT be-ternak Agritech</p>
                   <p>• <strong>QRIS Dinamis:</strong> Tersedia di kasir aplikasi</p>
                 </div>
               </div>

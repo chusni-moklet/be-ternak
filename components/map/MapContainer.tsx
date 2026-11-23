@@ -28,7 +28,7 @@ const DynamicMapInner = dynamic(() => import('./MapInner'), {
         <Loader2 className="w-5 h-5 text-emerald-300 absolute inset-0 m-auto animate-pulse" />
       </div>
       <p className="text-xs font-medium tracking-wide text-emerald-400/90">
-        Memuat Peta Spasial PetaPakan AI...
+        Memuat Peta Spasial be-ternak...
       </p>
     </div>
   ),

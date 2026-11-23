@@ -156,11 +156,11 @@ export default function ControlBar({
     : activeRegion?.name || 'Pilih Wilayah Indonesia';
 
   return (
-    <div className="w-full glass-panel-elevated rounded-2xl p-3 sm:p-3.5 text-slate-100 shadow-2xl transition-all border border-emerald-900/80">
-      <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
+    <div className="w-full glass-panel-elevated rounded-2xl p-2.5 sm:p-3.5 text-slate-100 shadow-2xl transition-all border border-emerald-900/80">
+      <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-2.5 sm:gap-3">
         
         {/* Left Section: Custom Dark Wilayah Combobox + Komoditas Unggas */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 flex-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 flex-1">
           
           {/* 1. Custom Searchable Wilayah Indonesia Dropdown */}
           <div className="relative" ref={regionRef}>

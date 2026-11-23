@@ -1,4 +1,4 @@
-# PetaPakan AI 🌾
+# be-ternak 🌾
 
 > **Sistem Pemetaan Potensi Wilayah & Rekomendasi Pakan Ternak Alternatif Berbasis AI**
 

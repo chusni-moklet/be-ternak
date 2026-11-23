@@ -99,7 +99,7 @@ export async function analyzeAreaWithGemini(
       ).join('\n')
     : 'Belum ada titik pakan terdaftar di radius ini (gunakan estimasi bahan pakan unggas lokal wilayah Indonesia).';
 
-  const systemPrompt = `Anda adalah "PetaPakan AI", Konsultan Ahli Nutrisi Ternak Unggas (Poultry Nutritionist) dan Agroklimatologi Indonesia.
+  const systemPrompt = `Anda adalah "be-ternak AI", Konsultan Ahli Nutrisi Ternak Unggas (Poultry Nutritionist) dan Agroklimatologi Indonesia.
 Fokus komoditas Anda adalah PERUNGGASAN KHUSUS (Ayam Broiler, Ayam Petelur/Layer, Ayam Kampung/Joper, Bebek/Itik, Burung Puyuh).
 
 Tugas Anda adalah menganalisis potensi geografis wilayah Indonesia, iklim/suhu lingkungan (analisis risiko Heat Stress pada unggas), dan sumber pakan alternatif lokal yang terdeteksi untuk jenis unggas: "${livestockType}".

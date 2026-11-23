@@ -107,7 +107,7 @@ export function createWhatsAppLink(contactInfo: string, feedMaterial: string): s
   }
 
   const message = encodeURIComponent(
-    `Halo, saya menemukan kontak Anda melalui platform PetaPakan AI untuk bahan pakan "${feedMaterial}". Apakah pasokan masih tersedia untuk pemesanan? Terima kasih.`
+    `Halo, saya menemukan kontak Anda melalui platform be-ternak untuk bahan pakan "${feedMaterial}". Apakah pasokan masih tersedia untuk pemesanan? Terima kasih.`
   );
 
   return `https://wa.me/${phone}?text=${message}`;

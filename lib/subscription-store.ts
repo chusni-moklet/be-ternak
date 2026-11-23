@@ -17,12 +17,12 @@ import { INITIAL_FEED_SOURCES } from './mock-data';
 export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'usr-admin-01',
-    name: 'Administrator PetaPakan AI',
+    name: 'Administrator be-ternak',
     email: 'chusniarin12@gmail.com',
     password: 'skylandO2',
     phone: '081234567890',
     role: 'admin',
-    business_name: 'PetaPakan AI Central Administration',
+    business_name: 'be-ternak Central Administration',
     location_address: 'Gedung Pusat Agritech Indonesia, Jakarta Selatan',
     lat: -6.2088,
     lng: 106.8456,
@@ -141,7 +141,7 @@ export const INITIAL_TRANSACTIONS: SubscriptionTransaction[] = [
     payment_method: 'bank_transfer_bca',
     payment_ref: 'BCA-TRX-774910',
     status: 'approved',
-    notes: 'Pembayaran transfer valid ke rekening BCA PT PetaPakan AI.',
+    notes: 'Pembayaran transfer valid ke rekening BCA PT be-ternak AI.',
     created_at: '2026-11-01T09:40:00Z',
     verified_at: '2026-11-01T10:15:00Z',
     verified_by: 'Budi Santoso, S.Pt (Admin)',
@@ -799,7 +799,7 @@ export function toggleUserVerification(
 export function verifyUserInStorage(
   userId: string,
   approve: boolean,
-  adminName: string = 'Administrator PetaPakan AI'
+  adminName: string = 'Administrator be-ternak'
 ): UserProfile {
   const users = loadUsersFromStorage();
   const userIndex = users.findIndex((u) => u.id === userId);

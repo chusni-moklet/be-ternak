@@ -155,7 +155,7 @@ function LoginRegisterContent() {
     <div className="min-h-screen bg-[#060d0a] text-slate-100 flex flex-col font-sans">
       <Navbar currentRegionName="Autentikasi Akun" />
 
-      <main className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 relative overflow-hidden">
+      <main className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 pb-20 lg:pb-8 relative overflow-hidden">
         {/* Subtle background glow */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -166,7 +166,7 @@ function LoginRegisterContent() {
               <Leaf className="w-6 h-6" />
             </div>
             <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-              PetaPakan <span className="text-emerald-400">AI</span> Authentication
+              be-<span className="text-emerald-400">ternak</span> Authentication
             </h1>
             <p className="text-xs sm:text-sm text-slate-400">
               Satu portal terintegrasi untuk Peternak Unggas, Pemilik Pakan Alternatif, dan Administrator
@@ -610,7 +610,7 @@ export default function LoginRegisterPage() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-[#060d0a] text-white flex items-center justify-center text-xs">
-          Memuat Autentikasi PetaPakan AI...
+          Memuat Autentikasi be-ternak...
         </div>
       }
     >

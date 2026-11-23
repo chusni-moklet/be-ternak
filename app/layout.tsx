@@ -2,17 +2,18 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'PetaPakan AI - Pemetaan Potensi Wilayah & Rekomendasi Pakan Ternak Alternatif',
+  title: 'be-ternak - Pemetaan Potensi Wilayah & Rekomendasi Pakan Ternak Alternatif',
   description:
-    'Sistem Pemetaan Potensi Wilayah & Rekomendasi Pakan Ternak Alternatif Berbasis AI dan Analisis Spasial PostGIS.',
+    'Sistem Pemetaan Potensi Wilayah & Rekomendasi Pakan Ternak Alternatif Berbasis AI dan Analisis Spasial PostGIS - be-ternak.',
   keywords: [
+    'be-ternak',
     'Pakan Ternak Alternatif',
     'Agroklimat',
     'GIS Peternakan',
     'Silase Jagung',
     'Ampas Tahu',
     'Ransum Ternak Presisi',
-    'PetaPakan AI',
+    'Peternak Unggas Layer Broiler',
   ],
 };
 

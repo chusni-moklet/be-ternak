@@ -194,7 +194,7 @@ export default function AdminDashboardPage() {
     const feed = feedSources.find((f) => f.id === feedId);
     if (!feed) return;
     const newStatus = !feed.is_verified;
-    verifyFeedSourceInStorage(feedId, newStatus, 'Administrator PetaPakan AI');
+    verifyFeedSourceInStorage(feedId, newStatus, 'Administrator be-ternak');
     setFeedSources([...loadFeedSourcesFromStorage()]);
     setNotification({
       type: 'success',
@@ -209,7 +209,7 @@ export default function AdminDashboardPage() {
   const handleVerifyUser = (userId: string, approve: boolean) => {
     setProcessingId(userId);
     try {
-      const updated = verifyUserInStorage(userId, approve, 'Administrator PetaPakan AI');
+      const updated = verifyUserInStorage(userId, approve, 'Administrator be-ternak');
       const loadedUsers = loadUsersFromStorage();
       setUsers([...loadedUsers]);
 
@@ -375,7 +375,7 @@ export default function AdminDashboardPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <h2 className="text-xs font-bold text-white truncate">Administrator PetaPakan AI</h2>
+                  <h2 className="text-xs font-bold text-white truncate">Administrator be-ternak</h2>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 </div>
                 <p className="text-[10px] text-emerald-400 font-semibold tracking-wide">
@@ -508,7 +508,7 @@ export default function AdminDashboardPage() {
         {/* ================================================================= */}
         {/* MAIN CONTENT AREA (RIGHT)                                         */}
         {/* ================================================================= */}
-        <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 space-y-6 max-w-7xl">
+        <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 pb-20 lg:pb-6 space-y-6 max-w-7xl">
           {/* Toast Notification */}
           {notification && (
             <div
@@ -1450,7 +1450,7 @@ export default function AdminDashboardPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0d1613] p-4 rounded-xl border border-emerald-950/60">
                 <div>
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
-                    <span>Daftar Pengguna Platform PetaPakan AI</span>
+                    <span>Daftar Pengguna Platform be-ternak</span>
                     <span className="text-xs text-emerald-400 font-semibold">
                       ({verifiedUsersCount} Terverifikasi)
                     </span>
@@ -1737,10 +1737,10 @@ export default function AdminDashboardPage() {
               <div className="p-6 rounded-2xl bg-[#0d1613] border border-emerald-950/70 space-y-4">
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Coins className="w-5 h-5 text-emerald-400" />
-                  Ringkasan Finansial Ekosistem Langganan PetaPakan AI
+                  Ringkasan Finansial Ekosistem Langganan be-ternak
                 </h2>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Platform PetaPakan AI menerapkan model bisnis berlangganan (*subscription-based SaaS*) untuk dua segmen pengguna:
+                  Platform be-ternak menerapkan model bisnis berlangganan (*subscription-based SaaS*) untuk dua segmen pengguna:
                   peternak unggas mandiri (akses formulasi nutrisi AI & peta radius) dan pemasok bahan pakan alternatif (badge verifikasi resmi & promosi prioritas).
                 </p>
 
@@ -1794,7 +1794,7 @@ export default function AdminDashboardPage() {
               <div className="p-6 rounded-2xl bg-[#0d1613] border border-emerald-950/70 space-y-4">
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <CreditCard className="w-5 h-5 text-emerald-400" />
-                  Rekening Operasional & Settlement PetaPakan AI
+                  Rekening Operasional & Settlement be-ternak
                 </h2>
                 <p className="text-xs text-slate-400">
                   Semua transaksi biaya langganan dari Peternak dan Pemilik Pakan disalurkan ke rekening bank resmi berbadan hukum:
@@ -1805,21 +1805,21 @@ export default function AdminDashboardPage() {
                     <span className="text-xs font-bold text-emerald-400 uppercase">Rekening Utama (BCA)</span>
                     <h3 className="text-base font-extrabold text-white">Bank Central Asia (BCA)</h3>
                     <p className="text-sm font-mono text-slate-200">No. Rek: <strong>8820-123-999</strong></p>
-                    <p className="text-xs text-slate-400">Atas Nama: <strong>PT PetaPakan Agritech Indonesia</strong></p>
+                    <p className="text-xs text-slate-400">Atas Nama: <strong>PT be-ternak Agritech Indonesia</strong></p>
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
                     <span className="text-xs font-bold text-teal-400 uppercase">Rekening Cadangan (Mandiri)</span>
                     <h3 className="text-base font-extrabold text-white">Bank Mandiri</h3>
                     <p className="text-sm font-mono text-slate-200">No. Rek: <strong>144-00-9988-121</strong></p>
-                    <p className="text-xs text-slate-400">Atas Nama: <strong>PT PetaPakan Agritech Indonesia</strong></p>
+                    <p className="text-xs text-slate-400">Atas Nama: <strong>PT be-ternak Agritech Indonesia</strong></p>
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
                     <span className="text-xs font-bold text-emerald-400 uppercase">Rekening Wilayah (BRI)</span>
                     <h3 className="text-base font-extrabold text-white">Bank Rakyat Indonesia (BRI)</h3>
                     <p className="text-sm font-mono text-slate-200">No. Rek: <strong>0122-01-002341-50-2</strong></p>
-                    <p className="text-xs text-slate-400">Atas Nama: <strong>PT PetaPakan Agritech Indonesia</strong></p>
+                    <p className="text-xs text-slate-400">Atas Nama: <strong>PT be-ternak Agritech Indonesia</strong></p>
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">

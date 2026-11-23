@@ -37,7 +37,7 @@ export default function AiInsightPanel({
           <div className="absolute inset-0 rounded-2xl bg-emerald-500/20 animate-ping" />
         </div>
         <h4 className="text-base font-bold text-white mb-1">
-          PetaPakan AI Sedang Menganalisis...
+          be-ternak AI Sedang Menganalisis...
         </h4>
         <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
           Menghitung korelasi agroklimatologi, profil nutrisi bahan pakan lokal, formulasi ransum seimbang, dan proyeksi efisiensi ekonomi untuk <strong className="text-emerald-300">{livestockType}</strong>.

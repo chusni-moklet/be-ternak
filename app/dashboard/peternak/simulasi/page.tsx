@@ -348,7 +348,7 @@ export default function LayerSimulationPage() {
     data.push({
       bulanLabel: 'Bln 0 (Modal)',
       bulanNum: 0,
-      'PetaPakan AI': Math.round(kumulatifAi / 1000000),
+      'be-ternak AI': Math.round(kumulatifAi / 1000000),
       'Pakan Komersial': Math.round(kumulatifKomersial / 1000000),
       bepLine: 0,
     });
@@ -369,7 +369,7 @@ export default function LayerSimulationPage() {
       data.push({
         bulanLabel: `Bln ${m}`,
         bulanNum: m,
-        'PetaPakan AI': Math.round(kumulatifAi / 1000000),
+        'be-ternak AI': Math.round(kumulatifAi / 1000000),
         'Pakan Komersial': Math.round(kumulatifKomersial / 1000000),
         bepLine: 0,
       });
@@ -691,7 +691,7 @@ export default function LayerSimulationPage() {
             <div className="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-900/40 text-[11px] text-emerald-300 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="leading-tight">
-                PetaPakan AI Engine terhubung aktif ke formulasi nutrisi.
+                be-ternak AI Engine terhubung aktif ke formulasi nutrisi.
               </span>
             </div>
           </div>
@@ -708,7 +708,7 @@ export default function LayerSimulationPage() {
         {/* ================================================================= */}
         {/* MAIN SIMULATOR CONTENT                                            */}
         {/* ================================================================= */}
-        <main className="flex-1 h-full overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        <main className="flex-1 h-full overflow-y-auto p-4 sm:p-6 lg:p-8 pb-20 lg:pb-8 space-y-6">
           
           {/* Breadcrumb & Actions Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -728,7 +728,7 @@ export default function LayerSimulationPage() {
                 <span>Simulasi Usaha Ayam Petelur (Layer)</span>
               </h1>
               <p className="text-xs text-slate-400">
-                Proyeksi finansial komprehensif, HPP telur per kg, arus kas siklus, dan dampak efisiensi ransum PetaPakan AI.
+                Proyeksi finansial komprehensif, HPP telur per kg, arus kas siklus, dan dampak efisiensi ransum be-ternak AI.
               </p>
             </div>
 
@@ -742,7 +742,7 @@ export default function LayerSimulationPage() {
                     ? 'bg-emerald-600 text-white border-emerald-400 shadow-emerald-600/30 hover:bg-emerald-500'
                     : 'bg-[#0F1D17] text-slate-300 border-[#1E352B] hover:text-white hover:bg-slate-900'
                 }`}
-                title="Tarik harga pakan dari Resep Ransum AI PetaPakan"
+                title="Tarik harga pakan dari Resep Ransum be-ternak AI"
               >
                 <Zap className={`w-3.5 h-3.5 ${isUsingAiFeed ? 'fill-current text-amber-300' : 'text-emerald-400'}`} />
                 <span>{isUsingAiFeed ? 'Pakan AI Aktif' : 'Gunakan Pakan AI'}</span>
@@ -1191,7 +1191,7 @@ export default function LayerSimulationPage() {
                             : 'bg-slate-800 text-slate-400'
                         }`}
                       >
-                        {isUsingAiFeed ? '✓ Resep AI PetaPakan' : 'Pakan Komersial'}
+                        {isUsingAiFeed ? '✓ Resep be-ternak AI' : 'Pakan Komersial'}
                       </span>
                     </div>
 
@@ -1351,7 +1351,7 @@ export default function LayerSimulationPage() {
             {/* =============================================================== */}
             <div className="lg:col-span-7 space-y-6">
 
-              {/* Banner Komparasi PetaPakan AI vs Konsentrat Pabrik */}
+              {/* Banner Komparasi be-ternak AI vs Konsentrat Pabrik */}
               <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-[#0F1D17] to-teal-950/80 border border-emerald-500/40 shadow-xl relative overflow-hidden">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1.5">
@@ -1434,7 +1434,7 @@ export default function LayerSimulationPage() {
                         <ReferenceLine y={0} stroke="#EF4444" strokeDasharray="3 3" label={{ value: 'BEP (Rp 0)', fill: '#EF4444', fontSize: 10 }} />
                         <Area
                           type="monotone"
-                          dataKey="PetaPakan AI"
+                          dataKey="be-ternak AI"
                           stroke="#10B981"
                           strokeWidth={2.5}
                           fillOpacity={1}
@@ -1459,7 +1459,7 @@ export default function LayerSimulationPage() {
                 </div>
 
                 <p className="text-[11px] text-slate-400 italic text-center pt-1">
-                  *Garis hijau (PetaPakan AI) mencapai titik impas modal bibit & kandang jauh lebih cepat ({calc.paybackPeriodBulan.toFixed(1)} bulan) dibanding garis kuning komersial.
+                  *Garis hijau (be-ternak AI) mencapai titik impas modal bibit & kandang jauh lebih cepat ({calc.paybackPeriodBulan.toFixed(1)} bulan) dibanding garis kuning komersial.
                 </p>
               </div>
 

@@ -20,7 +20,7 @@ import { INITIAL_REGIONS, INITIAL_FEED_SOURCES, calculateHaversineDistance } fro
 import { requestUserLocation } from '@/lib/geolocation';
 import { Sparkles, Layers, Navigation, AlertTriangle, X } from 'lucide-react';
 
-export default function PetaPakanDashboard() {
+export default function BeTernakDashboard() {
   // State Regions & Center Focus
   const [regions, setRegions] = useState<Region[]>(INITIAL_REGIONS);
   const [selectedRegionId, setSelectedRegionId] = useState<string>(INITIAL_REGIONS[0].id);
@@ -316,12 +316,12 @@ export default function PetaPakanDashboard() {
       />
 
       {/* Main Split-Screen Dashboard */}
-      <main className="flex-1 flex flex-col lg:grid lg:grid-cols-12 overflow-hidden relative">
+      <main className="flex-1 flex flex-col lg:grid lg:grid-cols-12 overflow-y-auto lg:overflow-hidden relative pb-16 lg:pb-0">
         
         {/* ============================================================ */}
         {/* PANEL KIRI (65% layar pada desktop - Peta Interaktif) */}
         {/* ============================================================ */}
-        <section className="lg:col-span-8 flex flex-col min-h-[62vh] lg:h-[calc(100vh-4rem)] relative border-b lg:border-b-0 lg:border-r border-emerald-950/80">
+        <section className="lg:col-span-8 flex flex-col min-h-[58vh] lg:h-[calc(100vh-4rem)] relative border-b lg:border-b-0 lg:border-r border-emerald-950/80">
           
           {/* Floating Control Bar (Atas Peta) */}
           <div className="absolute top-3 sm:top-4 left-3 sm:left-4 right-3 sm:right-4 z-30 pointer-events-auto space-y-2">
@@ -403,7 +403,7 @@ export default function PetaPakanDashboard() {
         {/* ============================================================ */}
         {/* PANEL KANAN (35% layar pada desktop - Sidebar AI & Feed List) */}
         {/* ============================================================ */}
-        <section className="lg:col-span-4 flex flex-col h-[48vh] lg:h-[calc(100vh-4rem)] bg-[#08120e] relative">
+        <section className="lg:col-span-4 flex flex-col min-h-[500px] lg:h-[calc(100vh-4rem)] bg-[#08120e] relative">
           
           {/* Tabs Navigation Header */}
           <div className="h-14 border-b border-emerald-950/80 px-4 flex items-center justify-between shrink-0 bg-[#060c09]/80 backdrop-blur-md">

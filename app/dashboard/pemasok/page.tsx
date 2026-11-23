@@ -501,7 +501,7 @@ export default function PemasokDashboardPage() {
         {/* ================================================================= */}
         {/* MAIN CONTENT AREA (RIGHT)                                         */}
         {/* ================================================================= */}
-        <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 space-y-6 max-w-7xl">
+        <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 pb-20 lg:pb-6 space-y-6 max-w-7xl">
           {/* Feedback Notice */}
           {feedbackNotice && (
             <div className="p-4 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 flex items-center justify-between text-xs sm:text-sm font-medium shadow-lg">
@@ -589,7 +589,7 @@ export default function PemasokDashboardPage() {
                       ) : currentUser.subscription_status === 'pending_verification' ? (
                         <span>Pembayaran Sedang Diverifikasi oleh Admin</span>
                       ) : (
-                        <span>Daftarkan Verifikasi Resmi Pemasok PetaPakan AI</span>
+                        <span>Daftarkan Verifikasi Resmi Pemasok be-ternak</span>
                       )}
                     </h2>
 
@@ -597,7 +597,7 @@ export default function PemasokDashboardPage() {
                       {currentUser.is_verified
                         ? 'Produk bahan baku pakan Anda diprioritaskan di baris pertama pencarian peternak dalam radius 30 km. Peternak dapat langsung menghubungi WhatsApp Anda dengan 1-klik.'
                         : currentUser.subscription_status === 'pending_verification'
-                        ? 'Admin PetaPakan AI sedang memverifikasi bukti transfer dan legalitas lokasi usaha Anda. Setelah diverifikasi, seluruh titik pakan Anda akan mendapatkan lencana centang hijau.'
+                        ? 'Admin be-ternak sedang memverifikasi bukti transfer dan legalitas lokasi usaha Anda. Setelah diverifikasi, seluruh titik pakan Anda akan mendapatkan lencana centang hijau.'
                         : 'Tingkatkan kepercayaan peternak ayam & unggas dengan Badge Terverifikasi Resmi. Pemasok terverifikasi mengalami kenaikan pesanan WhatsApp hingga 5x lipat.'}
                     </p>
                   </div>
@@ -904,10 +904,10 @@ export default function PemasokDashboardPage() {
 
               {/* Rekening Tujuan */}
               <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2 text-xs">
-                <span className="font-bold text-slate-200 block">Rekening Resmi PetaPakan AI:</span>
+                <span className="font-bold text-slate-200 block">Rekening Resmi be-ternak:</span>
                 <div className="space-y-1 text-slate-300">
-                  <p>• <strong>BCA:</strong> 8820-123-999 a.n PT PetaPakan Agritech</p>
-                  <p>• <strong>Mandiri:</strong> 144-00-9988-121 a.n PT PetaPakan Agritech</p>
+                  <p>• <strong>BCA:</strong> 8820-123-999 a.n PT be-ternak Agritech</p>
+                  <p>• <strong>Mandiri:</strong> 144-00-9988-121 a.n PT be-ternak Agritech</p>
                   <p>• <strong>QRIS:</strong> Tersedia scan instan seluruh e-wallet</p>
                 </div>
               </div>
