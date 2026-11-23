@@ -206,6 +206,7 @@ export interface UserProfile {
   id: string;
   name: string;
   email: string;
+  password?: string;
   phone: string;
   role: UserRole;
   business_name: string; // Nama Peternakan atau Nama Usaha Pakan
@@ -224,6 +225,22 @@ export interface UserProfile {
   verified_at?: string | null;
   verified_by?: string | null;
   created_at: string;
+}
+
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+  role: 'peternak' | 'pemilik_pakan';
+  business_name: string;
+  location_address: string;
+  lat?: number;
+  lng?: number;
+  livestock_types?: string[];
+  poultry_capacity?: number;
+  feed_materials?: string[];
+  supply_capacity_ton_month?: number;
 }
 
 export type PaymentMethod =

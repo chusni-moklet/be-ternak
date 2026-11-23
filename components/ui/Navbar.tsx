@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -12,7 +12,12 @@ import {
   Users,
   Store,
   ShieldCheck,
+  User,
+  LogIn,
+  LogOut,
 } from 'lucide-react';
+import { getActiveUser, logoutUser } from '@/lib/subscription-store';
+import { UserProfile } from '@/lib/types';
 
 interface NavbarProps {
   isSupabaseActive?: boolean;
@@ -28,6 +33,20 @@ export default function Navbar({
   currentRegionName = 'Kecamatan Grati, Pasuruan',
 }: NavbarProps) {
   const pathname = usePathname();
+  const [activeUser, setActiveUser] = useState<UserProfile | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    setActiveUser(getActiveUser());
+    const syncUser = () => setActiveUser(getActiveUser());
+    window.addEventListener('storage', syncUser);
+    window.addEventListener('focus', syncUser);
+    return () => {
+      window.removeEventListener('storage', syncUser);
+      window.removeEventListener('focus', syncUser);
+    };
+  }, []);
 
   const navLinks = [
     {
@@ -153,6 +172,53 @@ export default function Navbar({
             }`}
           />
         </Link>
+
+        {/* User Account / Auth Profile & Logout */}
+        {mounted && activeUser ? (
+          <div className="flex items-center gap-1.5 pl-1 border-l border-emerald-950/80">
+            <Link
+              href={
+                activeUser.role === 'admin'
+                  ? '/admin'
+                  : activeUser.role === 'pemilik_pakan'
+                  ? '/dashboard/pemasok'
+                  : '/dashboard/peternak'
+              }
+              title={`Akun: ${activeUser.name} (${activeUser.email})`}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-500/30 text-white font-medium text-[11px] transition-all"
+            >
+              <div className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                <User className="w-2.5 h-2.5" />
+              </div>
+              <span className="hidden xl:inline max-w-[110px] truncate">
+                {activeUser.business_name || activeUser.name}
+              </span>
+              <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
+                {activeUser.role === 'admin' ? 'Admin' : activeUser.role === 'peternak' ? 'Ternak' : 'Pakan'}
+              </span>
+            </Link>
+
+            <button
+              onClick={() => {
+                logoutUser();
+                setActiveUser(null);
+                window.location.href = '/login';
+              }}
+              title="Keluar dari Akun"
+              className="p-1 rounded-lg bg-slate-900/80 hover:bg-rose-950/60 border border-slate-800 hover:border-rose-800/60 text-slate-400 hover:text-rose-300 transition-all cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : mounted ? (
+          <Link
+            href="/login"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-md shadow-emerald-600/20"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Masuk / Daftar</span>
+          </Link>
+        ) : null}
       </div>
     </header>
   );

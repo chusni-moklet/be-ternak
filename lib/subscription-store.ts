@@ -6,6 +6,7 @@ import {
   SavedRansum,
   LayerSimulationScenario,
   FeedSource,
+  RegisterPayload,
 } from './types';
 import { INITIAL_FEED_SOURCES } from './mock-data';
 
@@ -16,11 +17,12 @@ import { INITIAL_FEED_SOURCES } from './mock-data';
 export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'usr-admin-01',
-    name: 'Budi Santoso, S.Pt',
-    email: 'admin@petapakan.id',
+    name: 'Administrator PetaPakan AI',
+    email: 'chusniarin12@gmail.com',
+    password: 'skylandO2',
     phone: '081234567890',
     role: 'admin',
-    business_name: 'PetaPakan AI Executive Operations',
+    business_name: 'PetaPakan AI Central Administration',
     location_address: 'Gedung Pusat Agritech Indonesia, Jakarta Selatan',
     lat: -6.2088,
     lng: 106.8456,
@@ -36,6 +38,7 @@ export const INITIAL_USERS: UserProfile[] = [
     id: 'usr-farmer-01',
     name: 'H. Subur Widodo',
     email: 'suburfarm.blitar@gmail.com',
+    password: 'peternak123',
     phone: '081334567891',
     role: 'peternak',
     business_name: 'Subur Makmur Layer Farm',
@@ -57,6 +60,7 @@ export const INITIAL_USERS: UserProfile[] = [
     id: 'usr-farmer-02',
     name: 'Ahmad Fauzi',
     email: 'fauzi.joper@yahoo.co.id',
+    password: 'peternak123',
     phone: '085211223344',
     role: 'peternak',
     business_name: 'Kandang Berkah Joper Ciamis',
@@ -78,6 +82,7 @@ export const INITIAL_USERS: UserProfile[] = [
     id: 'usr-supplier-01',
     name: 'Hj. Rohmah',
     email: 'barokah.dedak@gmail.com',
+    password: 'pemasok123',
     phone: '081298765432',
     role: 'pemilik_pakan',
     business_name: 'UD Barokah Dedak & Bekatul Pasuruan',
@@ -99,6 +104,7 @@ export const INITIAL_USERS: UserProfile[] = [
     id: 'usr-supplier-02',
     name: 'Ir. Hendra Kusuma',
     email: 'sinaragro.malang@outlook.com',
+    password: 'pemasok123',
     phone: '087812349988',
     role: 'pemilik_pakan',
     business_name: 'PT Sinar Agro Mandiri (Ampas Tahu & Maggot BSF)',
@@ -447,7 +453,23 @@ export function loadUsersFromStorage(): UserProfile[] {
       localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(INITIAL_USERS));
       return INITIAL_USERS;
     }
-    return JSON.parse(raw);
+    const users: UserProfile[] = JSON.parse(raw);
+    // Sinkronisasi akun admin utama (chusniarin12@gmail.com) agar selalu aktif & terverifikasi
+    const adminIndex = users.findIndex(
+      (u) => u.email.toLowerCase() === 'chusniarin12@gmail.com' || u.id === 'usr-admin-01'
+    );
+    if (adminIndex === -1) {
+      const merged = [INITIAL_USERS[0], ...users];
+      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(merged));
+      return merged;
+    } else {
+      // Pastikan email & password admin selalu terupdate sesuai instruksi
+      users[adminIndex].email = 'chusniarin12@gmail.com';
+      users[adminIndex].password = 'skylandO2';
+      users[adminIndex].is_verified = true;
+      users[adminIndex].role = 'admin';
+      return users;
+    }
   } catch {
     return INITIAL_USERS;
   }
@@ -459,6 +481,104 @@ export function saveUsersToStorage(users: UserProfile[]) {
     localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
   } catch (e) {
     console.error('Failed to save users:', e);
+  }
+}
+
+export function getActiveUser(): UserProfile | null {
+  const users = loadUsersFromStorage();
+  const activeId = getActiveUserId();
+  return users.find((u) => u.id === activeId) || users[0] || null;
+}
+
+export function registerUser(payload: RegisterPayload): UserProfile {
+  const users = loadUsersFromStorage();
+
+  // Validasi unik email
+  const existing = users.find(
+    (u) => u.email.toLowerCase() === payload.email.toLowerCase().trim()
+  );
+  if (existing) {
+    throw new Error('Email sudah terdaftar. Silakan gunakan email lain atau masuk ke akun Anda.');
+  }
+
+  const rolePrefix = payload.role === 'peternak' ? 'farmer' : 'supplier';
+  const newId = `usr-${rolePrefix}-${Date.now().toString().slice(-5)}`;
+
+  const newUser: UserProfile = {
+    id: newId,
+    name: payload.name.trim(),
+    email: payload.email.toLowerCase().trim(),
+    password: payload.password,
+    phone: payload.phone.trim(),
+    role: payload.role,
+    business_name: payload.business_name.trim(),
+    location_address: payload.location_address.trim(),
+    lat: payload.lat ?? (payload.role === 'peternak' ? -8.1283 : -7.7295),
+    lng: payload.lng ?? (payload.role === 'peternak' ? 112.2181 : 113.018),
+    livestock_types: payload.livestock_types ?? (payload.role === 'peternak' ? ['Ayam Petelur (Layer)'] : undefined),
+    poultry_capacity: payload.poultry_capacity ?? (payload.role === 'peternak' ? 3000 : undefined),
+    feed_materials: payload.feed_materials ?? (payload.role === 'pemilik_pakan' ? ['Dedak Padi Halus'] : undefined),
+    supply_capacity_ton_month: payload.supply_capacity_ton_month ?? (payload.role === 'pemilik_pakan' ? 20 : undefined),
+    subscription_status: 'pending_verification',
+    subscription_plan: payload.role === 'peternak' ? 'peternak_starter' : 'pemasok_umkm',
+    subscription_paid_amount: 0,
+    subscription_expires_at: null,
+    is_verified: false, // Wajib diverifikasi Admin terlebih dahulu
+    verified_at: null,
+    verified_by: null,
+    created_at: new Date().toISOString(),
+  };
+
+  const updatedUsers = [newUser, ...users];
+  saveUsersToStorage(updatedUsers);
+  setActiveUserId(newUser.id);
+  return newUser;
+}
+
+export function loginUser(email: string, password: string): UserProfile {
+  const cleanEmail = email.toLowerCase().trim();
+  const users = loadUsersFromStorage();
+
+  // Khusus Kredensial Admin Utama
+  if (
+    (cleanEmail === 'chusniarin12@gmail.com' || cleanEmail === 'admin@petapakan.id') &&
+    password === 'skylandO2'
+  ) {
+    let admin = users.find(
+      (u) => u.email.toLowerCase() === 'chusniarin12@gmail.com' || u.role === 'admin'
+    );
+    if (!admin) {
+      admin = INITIAL_USERS[0];
+      users.unshift(admin);
+      saveUsersToStorage(users);
+    }
+    setActiveUserId(admin.id);
+    return admin;
+  }
+
+  const user = users.find((u) => u.email.toLowerCase() === cleanEmail);
+  if (!user) {
+    throw new Error('Email tidak ditemukan. Pastikan email Anda sudah terdaftar.');
+  }
+
+  // Cek kecocokan password
+  const defaultPassword = user.role === 'peternak' ? 'peternak123' : 'pemasok123';
+  if (user.password && user.password !== password) {
+    throw new Error('Password salah. Silakan periksa kembali kata sandi Anda.');
+  } else if (!user.password && password !== defaultPassword && password !== '123456') {
+    throw new Error('Password salah. Silakan coba kembali.');
+  }
+
+  setActiveUserId(user.id);
+  return user;
+}
+
+export function logoutUser(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(STORAGE_KEY_ACTIVE_USER);
+  } catch (e) {
+    console.error('Failed to logout:', e);
   }
 }
 
@@ -666,6 +786,38 @@ export function toggleUserVerification(
     user.subscription_status = 'active';
     const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     user.subscription_expires_at = expiry.toISOString();
+  }
+
+  users[userIndex] = user;
+  saveUsersToStorage(users);
+  return user;
+}
+
+/**
+ * Admin menyetujui / menolak pendaftaran akun pengguna baru
+ */
+export function verifyUserInStorage(
+  userId: string,
+  approve: boolean,
+  adminName: string = 'Administrator PetaPakan AI'
+): UserProfile {
+  const users = loadUsersFromStorage();
+  const userIndex = users.findIndex((u) => u.id === userId);
+  if (userIndex === -1) throw new Error('Pengguna tidak ditemukan.');
+
+  const user = users[userIndex];
+  if (approve) {
+    user.is_verified = true;
+    user.verified_at = new Date().toISOString();
+    user.verified_by = adminName;
+    user.subscription_status = 'active';
+    const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    user.subscription_expires_at = expiry.toISOString();
+  } else {
+    user.is_verified = false;
+    user.verified_at = null;
+    user.verified_by = null;
+    user.subscription_status = 'rejected';
   }
 
   users[userIndex] = user;

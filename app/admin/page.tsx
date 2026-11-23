@@ -13,6 +13,7 @@ import {
   loadUsersFromStorage,
   verifySubscriptionTransaction,
   toggleUserVerification,
+  verifyUserInStorage,
   loadFeedSourcesFromStorage,
   verifyFeedSourceInStorage,
   deleteFeedSourceFromStorage,
@@ -29,6 +30,7 @@ import {
   X,
   CreditCard,
   Phone,
+  Mail,
   RefreshCw,
   Sparkles,
   MapPin,
@@ -55,8 +57,14 @@ export default function AdminDashboardPage() {
   // Side Menu Active Section
   const [activeTab, setActiveTab] = useState<AdminTab>('verification');
 
-  // Sub-tab di Menu Verifikasi: 'payments' (Biaya Langganan) | 'feeds' (Pengajuan Bahan Pakan)
-  const [verificationSubTab, setVerificationSubTab] = useState<'payments' | 'feeds'>('payments');
+  // Sub-tab di Menu Verifikasi: 'payments' (Biaya Langganan) | 'feeds' (Pengajuan Bahan Pakan) | 'users' (Pendaftaran Pengguna Baru)
+  const [verificationSubTab, setVerificationSubTab] = useState<'payments' | 'feeds' | 'users'>('payments');
+
+  // SSR hydration safety
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Mobile Side Menu Open/Close
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -186,7 +194,7 @@ export default function AdminDashboardPage() {
     const feed = feedSources.find((f) => f.id === feedId);
     if (!feed) return;
     const newStatus = !feed.is_verified;
-    verifyFeedSourceInStorage(feedId, newStatus, 'Budi Santoso, S.Pt (Admin)');
+    verifyFeedSourceInStorage(feedId, newStatus, 'Administrator PetaPakan AI');
     setFeedSources([...loadFeedSourcesFromStorage()]);
     setNotification({
       type: 'success',
@@ -197,6 +205,28 @@ export default function AdminDashboardPage() {
     setTimeout(() => setNotification(null), 3000);
   };
 
+  // Handler Verifikasi Pendaftaran Pengguna Baru oleh Admin
+  const handleVerifyUser = (userId: string, approve: boolean) => {
+    setProcessingId(userId);
+    try {
+      const updated = verifyUserInStorage(userId, approve, 'Administrator PetaPakan AI');
+      const loadedUsers = loadUsersFromStorage();
+      setUsers([...loadedUsers]);
+
+      setNotification({
+        type: approve ? 'success' : 'info',
+        message: approve
+          ? `Akun "${updated.name}" (${updated.business_name}) berhasil diverifikasi & diaktifkan!`
+          : `Pendaftaran akun "${updated.name}" ditolak / dinonaktifkan.`,
+      });
+      setTimeout(() => setNotification(null), 5000);
+    } catch (err: unknown) {
+      alert(`Gagal memproses verifikasi user: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   // Perhitungan Metrik Admin
   const totalRevenue = transactions
     .filter((t) => t.status === 'approved')
@@ -204,7 +234,8 @@ export default function AdminDashboardPage() {
 
   const pendingTxs = transactions.filter((t) => t.status === 'pending');
   const pendingFeeds = feedSources.filter((f) => !f.is_verified);
-  const totalPendingVerification = pendingTxs.length + pendingFeeds.length;
+  const pendingUsers = users.filter((u) => !u.is_verified && u.role !== 'admin');
+  const totalPendingVerification = pendingTxs.length + pendingFeeds.length + pendingUsers.length;
 
   const totalFarmers = users.filter((u) => u.role === 'peternak');
   const totalSuppliers = users.filter((u) => u.role === 'pemilik_pakan');
@@ -245,7 +276,7 @@ export default function AdminDashboardPage() {
           id: 'verification',
           label: 'Verifikasi & Validasi',
           icon: Clock,
-          badge: totalPendingVerification > 0 ? `${totalPendingVerification} Pending` : null,
+          badge: mounted && totalPendingVerification > 0 ? `${totalPendingVerification} Pending` : null,
           badgeColor: 'bg-amber-400 text-slate-950 animate-pulse font-bold',
         },
         {
@@ -310,7 +341,7 @@ export default function AdminDashboardPage() {
         </button>
 
         <div className="flex items-center gap-2">
-          {totalPendingVerification > 0 && (
+          {mounted && totalPendingVerification > 0 && (
             <span
               suppressHydrationWarning
               className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-bold animate-pulse"
@@ -344,13 +375,13 @@ export default function AdminDashboardPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <h2 className="text-xs font-bold text-white truncate">Budi Santoso, S.Pt</h2>
+                  <h2 className="text-xs font-bold text-white truncate">Administrator PetaPakan AI</h2>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 </div>
                 <p className="text-[10px] text-emerald-400 font-semibold tracking-wide">
-                  Superadmin Hub
+                  Superadmin Central
                 </p>
-                <p className="text-[9px] text-slate-400 truncate">admin@petapakan.id</p>
+                <p className="text-[9px] text-slate-400 truncate">chusniarin12@gmail.com</p>
               </div>
             </div>
           </div>
@@ -551,7 +582,13 @@ export default function AdminDashboardPage() {
                 <div
                   onClick={() => {
                     setActiveTab('verification');
-                    setVerificationSubTab(pendingFeeds.length > 0 && pendingTxs.length === 0 ? 'feeds' : 'payments');
+                    setVerificationSubTab(
+                      pendingUsers.length > 0
+                        ? 'users'
+                        : pendingFeeds.length > 0 && pendingTxs.length === 0
+                        ? 'feeds'
+                        : 'payments'
+                    );
                   }}
                   className="p-5 rounded-2xl bg-[#0d1613] border border-amber-500/40 cursor-pointer hover:border-amber-400 transition-all shadow-lg shadow-amber-500/5 group"
                 >
@@ -563,12 +600,14 @@ export default function AdminDashboardPage() {
                   </div>
                   <div className="mt-3 flex items-baseline gap-2">
                     <span suppressHydrationWarning className="text-3xl font-extrabold text-white">
-                      {totalPendingVerification}
+                      {mounted ? totalPendingVerification : 0}
                     </span>
                     <span className="text-xs text-amber-400 font-semibold">Pengajuan Baru</span>
                   </div>
                   <p suppressHydrationWarning className="text-[11px] text-slate-400 mt-1">
-                    {pendingTxs.length} Pembayaran • {pendingFeeds.length} Titik Pakan
+                    {mounted
+                      ? `${pendingTxs.length} Transaksi • ${pendingFeeds.length} Titik Pakan • ${pendingUsers.length} Akun`
+                      : 'Memuat antrean verifikasi...'}
                   </p>
                 </div>
 
@@ -754,6 +793,65 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
               )}
+
+              {/* Quick Action Pending User Registrations */}
+              {pendingUsers.length > 0 && (
+                <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-950/40 via-[#0d1613] to-emerald-950/30 border border-blue-500/40 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Users className="w-4 h-4 text-blue-400 animate-pulse" />
+                      Pendaftaran Akun Baru: {pendingUsers.length} Pengguna (Peternak & Pemilik Pakan) Menunggu Verifikasi
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setActiveTab('verification');
+                        setVerificationSubTab('users');
+                      }}
+                      className="text-xs text-blue-300 hover:text-blue-200 font-semibold flex items-center gap-1"
+                    >
+                      Buka Antrean Pengguna <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {pendingUsers.slice(0, 2).map((u) => (
+                      <div
+                        key={u.id}
+                        className="p-3.5 rounded-xl bg-slate-900/80 border border-blue-500/30 flex items-center justify-between"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-white truncate">
+                              {u.business_name}
+                            </span>
+                            <span className="text-[10px] text-blue-300 font-mono shrink-0">
+                              ({u.role === 'peternak' ? 'Peternak' : 'Pemilik Pakan'})
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 truncate">
+                            {u.name} • {u.email}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => handleVerifyUser(u.id, true)}
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold"
+                          >
+                            Setujui
+                          </button>
+                          <button
+                            onClick={() => handleVerifyUser(u.id, false)}
+                            className="px-2 py-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-rose-300 text-[11px]"
+                          >
+                            Tolak
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -762,8 +860,8 @@ export default function AdminDashboardPage() {
           {/* =============================================================== */}
           {activeTab === 'verification' && (
             <div className="space-y-4">
-              {/* Sub-tab Navigation: Pembayaran Langganan vs Pengajuan Pakan */}
-              <div className="flex items-center gap-2 border-b border-emerald-950/80 pb-3">
+              {/* Sub-tab Navigation: Pembayaran Langganan vs Pengajuan Pakan vs Verifikasi User */}
+              <div className="flex flex-wrap items-center gap-2 border-b border-emerald-950/80 pb-3">
                 <button
                   onClick={() => setVerificationSubTab('payments')}
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
@@ -774,7 +872,7 @@ export default function AdminDashboardPage() {
                 >
                   <CreditCard className="w-4 h-4" />
                   <span>1. Pembayaran Langganan</span>
-                  {pendingTxs.length > 0 && (
+                  {mounted && pendingTxs.length > 0 && (
                     <span
                       suppressHydrationWarning
                       className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-extrabold animate-pulse"
@@ -794,12 +892,32 @@ export default function AdminDashboardPage() {
                 >
                   <Layers className="w-4 h-4" />
                   <span>2. Pengajuan Titik Pakan Baru</span>
-                  {pendingFeeds.length > 0 && (
+                  {mounted && pendingFeeds.length > 0 && (
                     <span
                       suppressHydrationWarning
                       className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-extrabold animate-pulse"
                     >
                       {pendingFeeds.length} Baru
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setVerificationSubTab('users')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    verificationSubTab === 'users'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 border border-emerald-400/40'
+                      : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  <span>3. Verifikasi Akun Pengguna</span>
+                  {mounted && pendingUsers.length > 0 && (
+                    <span
+                      suppressHydrationWarning
+                      className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-extrabold animate-pulse"
+                    >
+                      {pendingUsers.length} Baru
                     </span>
                   )}
                 </button>
@@ -1164,6 +1282,155 @@ export default function AdminDashboardPage() {
                                   </button>
                                 </div>
                               )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* KONTEN SUB-TAB 3: VERIFIKASI PENDAFTARAN PENGGUNA BARU */}
+              {verificationSubTab === 'users' && (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0d1613] p-4 rounded-xl border border-emerald-950/60">
+                    <div>
+                      <h2 className="text-base font-bold text-white flex items-center gap-2">
+                        <span>Antrean Verifikasi Pendaftaran Pengguna Baru</span>
+                        {mounted && (
+                          <span className="text-xs text-amber-300 font-semibold">
+                            ({pendingUsers.length} Menunggu Persetujuan)
+                          </span>
+                        )}
+                      </h2>
+                      <p className="text-xs text-slate-400">
+                        Verifikasi akun Peternak Unggas & Pemilik Pakan Alternatif yang mendaftar via email agar berstatus aktif dan mendapatkan lencana centang hijau resmi
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">Total Akun Terverifikasi:</span>
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
+                        {verifiedUsersCount} Akun
+                      </span>
+                    </div>
+                  </div>
+
+                  {pendingUsers.length === 0 ? (
+                    <div className="p-12 text-center rounded-2xl bg-[#0d1613] border border-slate-800">
+                      <CheckCircle2 className="w-12 h-12 text-emerald-400/60 mx-auto mb-3" />
+                      <h3 className="text-base font-semibold text-white">Semua Pendaftaran Akun Telah Diverifikasi</h3>
+                      <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                        Tidak ada antrean pendaftaran peternak atau pemilik pakan yang tertunda. Semua akun baru yang mendaftar via email akan otomatis masuk ke sini untuk divalidasi.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                      {pendingUsers.map((u) => (
+                        <div
+                          key={u.id}
+                          className="p-5 rounded-2xl border transition-all bg-gradient-to-r from-[#0d1613] to-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-500/5"
+                        >
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            {/* User details */}
+                            <div className="space-y-2">
+                              <div className="flex items-center flex-wrap gap-2">
+                                <span
+                                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                    u.role === 'peternak'
+                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                      : 'bg-teal-500/20 text-teal-300 border border-teal-500/40'
+                                  }`}
+                                >
+                                  {u.role === 'peternak' ? 'Peternak Unggas' : 'Pemilik Pakan Alternatif'}
+                                </span>
+
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse flex items-center gap-1">
+                                  <Clock className="w-3.5 h-3.5" />
+                                  Menunggu Verifikasi Admin
+                                </span>
+
+                                <span className="text-xs text-slate-400 font-mono">
+                                  ID: {u.id}
+                                </span>
+                              </div>
+
+                              <div>
+                                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                                  <span>{u.business_name}</span>
+                                </h3>
+                                <p className="text-xs text-slate-300 mt-0.5">
+                                  Penanggung Jawab / Pemilik: <strong className="text-white">{u.name}</strong>
+                                </p>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 pt-1">
+                                <div className="flex items-center gap-1.5">
+                                  <Mail className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span className="text-slate-200">{u.email}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>{u.phone}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <MapPin className="w-3.5 h-3.5 text-teal-400" />
+                                  <span className="max-w-xs truncate">{u.location_address}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>
+                                    Terdaftar:{' '}
+                                    {u.created_at
+                                      ? new Date(u.created_at).toLocaleDateString('id-ID', {
+                                          day: 'numeric',
+                                          month: 'short',
+                                          year: 'numeric',
+                                        })
+                                      : 'Baru Saja'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Specific Metrics */}
+                              <div className="pt-1 text-xs">
+                                {u.role === 'peternak' ? (
+                                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-950/40 border border-emerald-900/60 text-emerald-300">
+                                    <span>Kapasitas Kandang: <strong>{u.poultry_capacity?.toLocaleString('id-ID') || 0} Ekor</strong></span>
+                                    <span>•</span>
+                                    <span>Komoditas: <strong>{u.livestock_types?.join(', ') || 'Ayam Petelur'}</strong></span>
+                                  </div>
+                                ) : (
+                                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-teal-950/40 border border-teal-900/60 text-teal-300">
+                                    <span>Kapasitas Suplai: <strong>{u.supply_capacity_ton_month || 0} Ton / Bulan</strong></span>
+                                    <span>•</span>
+                                    <span>Bahan Pakan: <strong>{u.feed_materials?.join(', ') || 'Dedak & Limbah Agro'}</strong></span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between gap-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-800 shrink-0">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  disabled={processingId === u.id}
+                                  onClick={() => handleVerifyUser(u.id, true)}
+                                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition-all disabled:opacity-50"
+                                >
+                                  <Check className="w-4 h-4" />
+                                  Verifikasi & Aktifkan Akun
+                                </button>
+                                <button
+                                  disabled={processingId === u.id}
+                                  onClick={() => handleVerifyUser(u.id, false)}
+                                  className="px-3.5 py-2.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 text-xs font-semibold flex items-center gap-1 transition-all disabled:opacity-50"
+                                >
+                                  <X className="w-4 h-4" />
+                                  Tolak
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
