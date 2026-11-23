@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/ui/Navbar';
 import {
@@ -13,8 +13,10 @@ import {
   loadUsersFromStorage,
   verifySubscriptionTransaction,
   toggleUserVerification,
+  loadFeedSourcesFromStorage,
+  verifyFeedSourceInStorage,
+  deleteFeedSourceFromStorage,
 } from '@/lib/subscription-store';
-import { INITIAL_FEED_SOURCES } from '@/lib/mock-data';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -38,6 +40,7 @@ import {
   ChevronRight,
   Search,
   ExternalLink,
+  Trash2,
 } from 'lucide-react';
 
 type AdminTab = 'overview' | 'verification' | 'users' | 'feeds' | 'reports' | 'payments';
@@ -47,10 +50,13 @@ export default function AdminDashboardPage() {
     loadTransactionsFromStorage()
   );
   const [users, setUsers] = useState<UserProfile[]>(() => loadUsersFromStorage());
-  const [feedSources, setFeedSources] = useState<FeedSource[]>(INITIAL_FEED_SOURCES);
+  const [feedSources, setFeedSources] = useState<FeedSource[]>(() => loadFeedSourcesFromStorage());
 
   // Side Menu Active Section
   const [activeTab, setActiveTab] = useState<AdminTab>('verification');
+
+  // Sub-tab di Menu Verifikasi: 'payments' (Biaya Langganan) | 'feeds' (Pengajuan Bahan Pakan)
+  const [verificationSubTab, setVerificationSubTab] = useState<'payments' | 'feeds'>('payments');
 
   // Mobile Side Menu Open/Close
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -59,6 +65,7 @@ export default function AdminDashboardPage() {
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'peternak' | 'pemilik_pakan'>('all');
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [txStatusFilter, setTxStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [feedFilter, setFeedFilter] = useState<'all' | 'pending' | 'verified'>('all');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'info'; message: string } | null>(null);
 
@@ -66,14 +73,31 @@ export default function AdminDashboardPage() {
   const refreshData = () => {
     const loadedTxs = loadTransactionsFromStorage();
     const loadedUsers = loadUsersFromStorage();
+    const loadedFeeds = loadFeedSourcesFromStorage();
     setTransactions([...loadedTxs]);
     setUsers([...loadedUsers]);
+    setFeedSources([...loadedFeeds]);
     setNotification({
       type: 'info',
-      message: 'Data transaksi dan pengguna berhasil disinkronisasi.',
+      message: 'Data transaksi, pengguna, dan titik pakan berhasil disinkronisasi.',
     });
     setTimeout(() => setNotification(null), 3000);
   };
+
+  // Sinkronisasi realtime jika ada pengajuan pakan atau pembayaran baru dari portal lain
+  useEffect(() => {
+    const handleSync = () => {
+      setTransactions([...loadTransactionsFromStorage()]);
+      setUsers([...loadUsersFromStorage()]);
+      setFeedSources([...loadFeedSourcesFromStorage()]);
+    };
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('focus', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('focus', handleSync);
+    };
+  }, []);
 
   // Handler Verifikasi / Tolak Pembayaran
   const handleVerify = (txId: string, approve: boolean) => {
@@ -118,16 +142,57 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Handler Verifikasi Pengajuan Titik Pakan oleh Admin
+  const handleVerifyFeed = (feedId: string, approve: boolean) => {
+    setProcessingId(feedId);
+    try {
+      const updated = verifyFeedSourceInStorage(feedId, approve, 'Budi Santoso, S.Pt (Admin)');
+      const loadedFeeds = loadFeedSourcesFromStorage();
+      setFeedSources([...loadedFeeds]);
+
+      setNotification({
+        type: approve ? 'success' : 'info',
+        message: approve
+          ? `Titik pakan "${updated.name}" dari ${updated.supplier_name || 'Pemilik Pakan'} berhasil diverifikasi! Kini aktif dengan badge centang hijau resmi di peta & katalog.`
+          : `Pengajuan titik pakan "${updated.name}" berhasil ditolak/dinonaktifkan.`,
+      });
+
+      setTimeout(() => setNotification(null), 5000);
+    } catch (err: unknown) {
+      alert(`Gagal memverifikasi titik pakan: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // Handler Hapus Titik Pakan Manual
+  const handleDeleteFeed = (feedId: string) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus data titik pakan ini dari peta?')) return;
+    try {
+      deleteFeedSourceFromStorage(feedId);
+      setFeedSources([...loadFeedSourcesFromStorage()]);
+      setNotification({
+        type: 'info',
+        message: 'Titik pakan berhasil dihapus dari database spasial.',
+      });
+      setTimeout(() => setNotification(null), 3000);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   // Handler Toggle Verifikasi Titik Pakan Manual
   const handleToggleFeed = (feedId: string) => {
-    setFeedSources((prev) =>
-      prev.map((f) =>
-        f.id === feedId ? { ...f, is_verified: !f.is_verified } : f
-      )
-    );
+    const feed = feedSources.find((f) => f.id === feedId);
+    if (!feed) return;
+    const newStatus = !feed.is_verified;
+    verifyFeedSourceInStorage(feedId, newStatus, 'Budi Santoso, S.Pt (Admin)');
+    setFeedSources([...loadFeedSourcesFromStorage()]);
     setNotification({
       type: 'success',
-      message: 'Status verifikasi titik pakan berhasil diperbarui di peta publik.',
+      message: `Status verifikasi titik pakan "${feed.name}" diubah menjadi: ${
+        newStatus ? 'Terverifikasi (Centang Hijau Aktif)' : 'Belum Diverifikasi'
+      }`,
     });
     setTimeout(() => setNotification(null), 3000);
   };
@@ -138,6 +203,9 @@ export default function AdminDashboardPage() {
     .reduce((sum, t) => sum + Number(t.amount), 0);
 
   const pendingTxs = transactions.filter((t) => t.status === 'pending');
+  const pendingFeeds = feedSources.filter((f) => !f.is_verified);
+  const totalPendingVerification = pendingTxs.length + pendingFeeds.length;
+
   const totalFarmers = users.filter((u) => u.role === 'peternak');
   const totalSuppliers = users.filter((u) => u.role === 'pemilik_pakan');
   const verifiedUsersCount = users.filter((u) => u.is_verified && u.role !== 'admin').length;
@@ -161,6 +229,13 @@ export default function AdminDashboardPage() {
     return true;
   });
 
+  const filteredFeeds = feedSources.filter((f) => {
+    if (feedFilter === 'all') return true;
+    if (feedFilter === 'pending') return !f.is_verified;
+    if (feedFilter === 'verified') return f.is_verified;
+    return true;
+  });
+
   // Navigasi Side Menu Items
   const sideMenuItems = [
     {
@@ -168,9 +243,9 @@ export default function AdminDashboardPage() {
       items: [
         {
           id: 'verification',
-          label: 'Verifikasi Langganan',
+          label: 'Verifikasi & Validasi',
           icon: Clock,
-          badge: pendingTxs.length > 0 ? `${pendingTxs.length} Pending` : null,
+          badge: totalPendingVerification > 0 ? `${totalPendingVerification} Pending` : null,
           badgeColor: 'bg-amber-400 text-slate-950 animate-pulse font-bold',
         },
         {
@@ -184,8 +259,11 @@ export default function AdminDashboardPage() {
           id: 'feeds',
           label: 'Titik Pakan Spasial',
           icon: Layers,
-          badge: `${feedSources.length} Titik`,
-          badgeColor: 'bg-emerald-950 text-emerald-400 border border-emerald-500/20',
+          badge: pendingFeeds.length > 0 ? `${pendingFeeds.length} Perlu Cek` : `${feedSources.length} Titik`,
+          badgeColor:
+            pendingFeeds.length > 0
+              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
+              : 'bg-emerald-950 text-emerald-400 border border-emerald-500/20',
         },
       ],
     },
@@ -232,9 +310,9 @@ export default function AdminDashboardPage() {
         </button>
 
         <div className="flex items-center gap-2">
-          {pendingTxs.length > 0 && (
+          {totalPendingVerification > 0 && (
             <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-bold animate-pulse">
-              {pendingTxs.length} Pending
+              {totalPendingVerification} Pending
             </span>
           )}
           <span className="text-xs font-bold text-white">Panel Superadmin</span>
@@ -467,7 +545,10 @@ export default function AdminDashboardPage() {
               {/* 4 Big Metric Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div
-                  onClick={() => setActiveTab('verification')}
+                  onClick={() => {
+                    setActiveTab('verification');
+                    setVerificationSubTab(pendingFeeds.length > 0 && pendingTxs.length === 0 ? 'feeds' : 'payments');
+                  }}
                   className="p-5 rounded-2xl bg-[#0d1613] border border-amber-500/40 cursor-pointer hover:border-amber-400 transition-all shadow-lg shadow-amber-500/5 group"
                 >
                   <div className="flex items-center justify-between">
@@ -478,12 +559,12 @@ export default function AdminDashboardPage() {
                   </div>
                   <div className="mt-3 flex items-baseline gap-2">
                     <span className="text-3xl font-extrabold text-white">
-                      {pendingTxs.length}
+                      {totalPendingVerification}
                     </span>
-                    <span className="text-xs text-amber-400 font-semibold">Transaksi Baru</span>
+                    <span className="text-xs text-amber-400 font-semibold">Pengajuan Baru</span>
                   </div>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Klik untuk membuka antrean verifikasi
+                    {pendingTxs.length} Pembayaran • {pendingFeeds.length} Titik Pakan
                   </p>
                 </div>
 
@@ -610,189 +691,475 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
               )}
+
+              {/* Quick Action Pending Feed Submissions */}
+              {pendingFeeds.length > 0 && (
+                <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-[#0d1613] to-teal-950/30 border border-emerald-500/40 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-emerald-400 animate-pulse" />
+                      Pengajuan Titik Pakan Baru: {pendingFeeds.length} Bahan Pakan Menunggu Verifikasi Admin
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setActiveTab('verification');
+                        setVerificationSubTab('feeds');
+                      }}
+                      className="text-xs text-emerald-300 hover:text-emerald-200 font-semibold flex items-center gap-1"
+                    >
+                      Buka Antrean Pakan <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {pendingFeeds.slice(0, 2).map((feed) => (
+                      <div
+                        key={feed.id}
+                        className="p-3.5 rounded-xl bg-slate-900/80 border border-emerald-500/30 flex items-center justify-between"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-white truncate">
+                              {feed.name}
+                            </span>
+                            <span className="text-[10px] text-emerald-400 font-mono shrink-0">
+                              (Rp {feed.estimated_price_per_kg.toLocaleString('id-ID')}/kg)
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 truncate">
+                            {feed.supplier_name || feed.contact_info} • {feed.category}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => handleVerifyFeed(feed.id, true)}
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold"
+                          >
+                            Setujui
+                          </button>
+                          <button
+                            onClick={() => handleVerifyFeed(feed.id, false)}
+                            className="px-2 py-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-rose-300 text-[11px]"
+                          >
+                            Tolak
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* =============================================================== */}
-          {/* TAB: VERIFICATION (ANTREAN VERIFIKASI PEMBAYARAN)               */}
+          {/* TAB: VERIFICATION (ANTREAN VERIFIKASI PEMBAYARAN & PAKAN)       */}
           {/* =============================================================== */}
           {activeTab === 'verification' && (
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0d1613] p-4 rounded-xl border border-emerald-950/60">
-                <div>
-                  <h2 className="text-base font-bold text-white flex items-center gap-2">
-                    <span>Daftar Transaksi Biaya Langganan</span>
-                    <span className="text-xs text-slate-400 font-normal">
-                      (Peternak & Pemilik Pakan)
+              {/* Sub-tab Navigation: Pembayaran Langganan vs Pengajuan Pakan */}
+              <div className="flex items-center gap-2 border-b border-emerald-950/80 pb-3">
+                <button
+                  onClick={() => setVerificationSubTab('payments')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    verificationSubTab === 'payments'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 border border-emerald-400/40'
+                      : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span>1. Pembayaran Langganan</span>
+                  {pendingTxs.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-extrabold animate-pulse">
+                      {pendingTxs.length}
                     </span>
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Verifikasi bukti transfer untuk mengaktifkan akun dan memberikan badge centang hijau resmi
-                  </p>
-                </div>
+                  )}
+                </button>
 
-                {/* Filter Status Transaksi */}
-                <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800 text-xs">
-                  {(['all', 'pending', 'approved', 'rejected'] as const).map((st) => (
-                    <button
-                      key={st}
-                      onClick={() => setTxStatusFilter(st)}
-                      className={`px-2.5 py-1 rounded-md capitalize font-medium transition-all ${
-                        txStatusFilter === st
-                          ? 'bg-emerald-600 text-white font-semibold'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {st === 'all'
-                        ? 'Semua'
-                        : st === 'pending'
-                        ? 'Menunggu'
-                        : st === 'approved'
-                        ? 'Disetujui'
-                        : 'Ditolak'}
-                    </button>
-                  ))}
-                </div>
+                <button
+                  onClick={() => setVerificationSubTab('feeds')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    verificationSubTab === 'feeds'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 border border-emerald-400/40'
+                      : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <Layers className="w-4 h-4" />
+                  <span>2. Pengajuan Titik Pakan Baru</span>
+                  {pendingFeeds.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-extrabold animate-pulse">
+                      {pendingFeeds.length} Baru
+                    </span>
+                  )}
+                </button>
               </div>
 
-              {filteredTransactions.length === 0 ? (
-                <div className="p-12 text-center rounded-2xl bg-[#0d1613] border border-slate-800">
-                  <CheckCircle2 className="w-12 h-12 text-emerald-400/60 mx-auto mb-3" />
-                  <h3 className="text-base font-semibold text-white">Tidak ada transaksi ditemukan</h3>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Semua permohonan biaya langganan telah diproses atau belum ada data baru.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-4">
-                  {filteredTransactions.map((tx) => (
-                    <div
-                      key={tx.id}
-                      className={`p-5 rounded-2xl border transition-all ${
-                        tx.status === 'pending'
-                          ? 'bg-gradient-to-r from-[#0d1613] to-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-500/5'
-                          : tx.status === 'approved'
-                          ? 'bg-[#0d1613] border-emerald-950/80 hover:border-emerald-500/30'
-                          : 'bg-[#0d1613] border-rose-950/80 opacity-75'
-                      }`}
-                    >
-                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                        {/* Left: User & Business Info */}
-                        <div className="space-y-2">
-                          <div className="flex items-center flex-wrap gap-2">
-                            <span
-                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
-                                tx.user_role === 'peternak'
-                                  ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
-                                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                              }`}
-                            >
-                              {tx.user_role === 'peternak' ? '👨‍🌾 Peternak' : '🌾 Pemilik Pakan'}
-                            </span>
-
-                            <span
-                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                                tx.status === 'pending'
-                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
-                                  : tx.status === 'approved'
-                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                              }`}
-                            >
-                              {tx.status === 'pending'
-                                ? '⏳ Menunggu Verifikasi'
-                                : tx.status === 'approved'
-                                ? '✓ Terverifikasi & Aktif'
-                                : '✕ Ditolak'}
-                            </span>
-
-                            <span className="text-xs text-slate-400">
-                              Ref: <code className="text-emerald-400 font-mono">{tx.payment_ref}</code>
-                            </span>
-                          </div>
-
-                          <div>
-                            <h3 className="text-base font-bold text-white flex items-center gap-2">
-                              <span>{tx.business_name}</span>
-                              <span className="text-xs font-normal text-slate-400">
-                                (a.n. {tx.user_name})
-                              </span>
-                            </h3>
-                            <p className="text-xs text-emerald-400 font-semibold mt-0.5">
-                              Paket: {tx.plan_name}
-                            </p>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 pt-1">
-                            <div className="flex items-center gap-1.5">
-                              <CreditCard className="w-3.5 h-3.5 text-slate-400" />
-                              <span>
-                                Metode:{' '}
-                                <strong className="text-slate-200 uppercase">
-                                  {tx.payment_method.replace('bank_transfer_', 'BANK ')}
-                                </strong>
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-slate-400" />
-                              <span>
-                                Tanggal:{' '}
-                                {new Date(tx.created_at).toLocaleDateString('id-ID', {
-                                  day: 'numeric',
-                                  month: 'short',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
-                              </span>
-                            </div>
-                          </div>
-
-                          {tx.notes && (
-                            <p className="text-xs italic text-slate-400 bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-800">
-                              Catatan: {tx.notes}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Right: Amount & Action Buttons */}
-                        <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between gap-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-800">
-                          <div className="text-left lg:text-right">
-                            <span className="text-[11px] text-slate-400 block">Biaya Langganan:</span>
-                            <span className="text-lg sm:text-xl font-extrabold text-white">
-                              Rp {Number(tx.amount).toLocaleString('id-ID')}
-                            </span>
-                          </div>
-
-                          {tx.status === 'pending' ? (
-                            <div className="flex items-center gap-2">
-                              <button
-                                disabled={processingId === tx.id}
-                                onClick={() => handleVerify(tx.id, true)}
-                                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition-all disabled:opacity-50"
-                              >
-                                <Check className="w-4 h-4" />
-                                Verifikasi & Aktifkan
-                              </button>
-                              <button
-                                disabled={processingId === tx.id}
-                                onClick={() => handleVerify(tx.id, false)}
-                                className="px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 text-xs font-semibold flex items-center gap-1 transition-all disabled:opacity-50"
-                              >
-                                <X className="w-4 h-4" />
-                                Tolak
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="text-xs text-slate-400 text-right">
-                              Diverifikasi oleh: <br />
-                              <strong className="text-slate-300">{tx.verified_by || 'Admin'}</strong>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+              {/* KONTEN SUB-TAB 1: PEMBAYARAN BIAYA LANGGANAN */}
+              {verificationSubTab === 'payments' && (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0d1613] p-4 rounded-xl border border-emerald-950/60">
+                    <div>
+                      <h2 className="text-base font-bold text-white flex items-center gap-2">
+                        <span>Daftar Transaksi Biaya Langganan</span>
+                        <span className="text-xs text-slate-400 font-normal">
+                          (Peternak & Pemilik Pakan)
+                        </span>
+                      </h2>
+                      <p className="text-xs text-slate-400">
+                        Verifikasi bukti transfer untuk mengaktifkan akun dan memberikan badge centang hijau resmi
+                      </p>
                     </div>
-                  ))}
+
+                    {/* Filter Status Transaksi */}
+                    <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800 text-xs">
+                      {(['all', 'pending', 'approved', 'rejected'] as const).map((st) => (
+                        <button
+                          key={st}
+                          onClick={() => setTxStatusFilter(st)}
+                          className={`px-2.5 py-1 rounded-md capitalize font-medium transition-all ${
+                            txStatusFilter === st
+                              ? 'bg-emerald-600 text-white font-semibold'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {st === 'all'
+                            ? 'Semua'
+                            : st === 'pending'
+                            ? 'Menunggu'
+                            : st === 'approved'
+                            ? 'Disetujui'
+                            : 'Ditolak'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {filteredTransactions.length === 0 ? (
+                    <div className="p-12 text-center rounded-2xl bg-[#0d1613] border border-slate-800">
+                      <CheckCircle2 className="w-12 h-12 text-emerald-400/60 mx-auto mb-3" />
+                      <h3 className="text-base font-semibold text-white">Tidak ada transaksi ditemukan</h3>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Semua permohonan biaya langganan telah diproses atau belum ada data baru.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                      {filteredTransactions.map((tx) => (
+                        <div
+                          key={tx.id}
+                          className={`p-5 rounded-2xl border transition-all ${
+                            tx.status === 'pending'
+                              ? 'bg-gradient-to-r from-[#0d1613] to-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-500/5'
+                              : tx.status === 'approved'
+                              ? 'bg-[#0d1613] border-emerald-950/80 hover:border-emerald-500/30'
+                              : 'bg-[#0d1613] border-rose-950/80 opacity-75'
+                          }`}
+                        >
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            {/* Left: User & Business Info */}
+                            <div className="space-y-2">
+                              <div className="flex items-center flex-wrap gap-2">
+                                <span
+                                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                                    tx.user_role === 'peternak'
+                                      ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
+                                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  }`}
+                                >
+                                  {tx.user_role === 'peternak' ? '👨‍🌾 Peternak' : '🌾 Pemilik Pakan'}
+                                </span>
+
+                                <span
+                                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                    tx.status === 'pending'
+                                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
+                                      : tx.status === 'approved'
+                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                  }`}
+                                >
+                                  {tx.status === 'pending'
+                                    ? '⏳ Menunggu Verifikasi'
+                                    : tx.status === 'approved'
+                                    ? '✓ Terverifikasi & Aktif'
+                                    : '✕ Ditolak'}
+                                </span>
+
+                                <span className="text-xs text-slate-400">
+                                  Ref: <code className="text-emerald-400 font-mono">{tx.payment_ref}</code>
+                                </span>
+                              </div>
+
+                              <div>
+                                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                                  <span>{tx.business_name}</span>
+                                  <span className="text-xs font-normal text-slate-400">
+                                    (a.n. {tx.user_name})
+                                  </span>
+                                </h3>
+                                <p className="text-xs text-emerald-400 font-semibold mt-0.5">
+                                  Paket: {tx.plan_name}
+                                </p>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 pt-1">
+                                <div className="flex items-center gap-1.5">
+                                  <CreditCard className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>
+                                    Metode:{' '}
+                                    <strong className="text-slate-200 uppercase">
+                                      {tx.payment_method.replace('bank_transfer_', 'BANK ')}
+                                    </strong>
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>
+                                    Tanggal:{' '}
+                                    {new Date(tx.created_at).toLocaleDateString('id-ID', {
+                                      day: 'numeric',
+                                      month: 'short',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {tx.notes && (
+                                <p className="text-xs italic text-slate-400 bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-800">
+                                  Catatan: {tx.notes}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Right: Amount & Action Buttons */}
+                            <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between gap-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-800">
+                              <div className="text-left lg:text-right">
+                                <span className="text-[11px] text-slate-400 block">Biaya Langganan:</span>
+                                <span className="text-lg sm:text-xl font-extrabold text-white">
+                                  Rp {Number(tx.amount).toLocaleString('id-ID')}
+                                </span>
+                              </div>
+
+                              {tx.status === 'pending' ? (
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    disabled={processingId === tx.id}
+                                    onClick={() => handleVerify(tx.id, true)}
+                                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition-all disabled:opacity-50"
+                                  >
+                                    <Check className="w-4 h-4" />
+                                    Verifikasi & Aktifkan
+                                  </button>
+                                  <button
+                                    disabled={processingId === tx.id}
+                                    onClick={() => handleVerify(tx.id, false)}
+                                    className="px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 text-xs font-semibold flex items-center gap-1 transition-all disabled:opacity-50"
+                                  >
+                                    <X className="w-4 h-4" />
+                                    Tolak
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="text-xs text-slate-400 text-right">
+                                  Diverifikasi oleh: <br />
+                                  <strong className="text-slate-300">{tx.verified_by || 'Admin'}</strong>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* KONTEN SUB-TAB 2: PENGAJUAN TITIK BAHAN PAKAN BARU */}
+              {verificationSubTab === 'feeds' && (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0d1613] p-4 rounded-xl border border-emerald-950/60">
+                    <div>
+                      <h2 className="text-base font-bold text-white flex items-center gap-2">
+                        <span>Verifikasi Pengajuan Titik Bahan Pakan</span>
+                        <span className="text-xs text-amber-300 font-semibold">
+                          ({pendingFeeds.length} Menunggu)
+                        </span>
+                      </h2>
+                      <p className="text-xs text-slate-400">
+                        Setujui pengajuan pakan dari pemilik pakan agar titik muncul dengan centang hijau resmi di peta interaktif peternak
+                      </p>
+                    </div>
+
+                    {/* Filter Status Pakan */}
+                    <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800 text-xs">
+                      {(['all', 'pending', 'verified'] as const).map((st) => (
+                        <button
+                          key={st}
+                          onClick={() => setFeedFilter(st)}
+                          className={`px-2.5 py-1 rounded-md capitalize font-medium transition-all ${
+                            feedFilter === st
+                              ? 'bg-emerald-600 text-white font-semibold'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {st === 'all'
+                            ? `Semua (${feedSources.length})`
+                            : st === 'pending'
+                            ? `Menunggu (${pendingFeeds.length})`
+                            : `Terverifikasi (${feedSources.filter((f) => f.is_verified).length})`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {filteredFeeds.length === 0 ? (
+                    <div className="p-12 text-center rounded-2xl bg-[#0d1613] border border-slate-800">
+                      <CheckCircle2 className="w-12 h-12 text-emerald-400/60 mx-auto mb-3" />
+                      <h3 className="text-base font-semibold text-white">Tidak ada pengajuan bahan pakan</h3>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Semua pengajuan pakan alternatif telah diverifikasi atau tidak sesuai filter.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                      {filteredFeeds.map((feed) => (
+                        <div
+                          key={feed.id}
+                          className={`p-5 rounded-2xl border transition-all ${
+                            !feed.is_verified
+                              ? 'bg-gradient-to-r from-[#0d1613] to-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-500/5'
+                              : 'bg-[#0d1613] border-emerald-950/80 hover:border-emerald-500/30'
+                          }`}
+                        >
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            {/* Left: Feed & Supplier Info */}
+                            <div className="space-y-2">
+                              <div className="flex items-center flex-wrap gap-2">
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-800 text-slate-300">
+                                  {feed.category}
+                                </span>
+
+                                {!feed.is_verified ? (
+                                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse flex items-center gap-1">
+                                    <Clock className="w-3.5 h-3.5" />
+                                    ⏳ Menunggu Verifikasi Admin
+                                  </span>
+                                ) : (
+                                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    ✓ Terverifikasi & Aktif di Peta
+                                  </span>
+                                )}
+
+                                <span className="text-xs text-slate-400 font-mono">
+                                  ID: {feed.id}
+                                </span>
+                              </div>
+
+                              <div>
+                                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                                  <span>{feed.name}</span>
+                                </h3>
+                                <p className="text-xs text-slate-300 mt-0.5">
+                                  {feed.feed_material}
+                                </p>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 pt-1">
+                                <div className="flex items-center gap-1.5">
+                                  <Store className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span>
+                                    Pemasok:{' '}
+                                    <strong className="text-slate-200">
+                                      {feed.supplier_name || 'Pemilik Pakan'}
+                                    </strong>
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>Kontak: {feed.contact_info}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <MapPin className="w-3.5 h-3.5 text-teal-400" />
+                                  <span>
+                                    Koordinat: [{feed.lat.toFixed(4)}, {feed.lng.toFixed(4)}]
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>
+                                    Diajukan:{' '}
+                                    {feed.created_at
+                                      ? new Date(feed.created_at).toLocaleDateString('id-ID', {
+                                          day: 'numeric',
+                                          month: 'short',
+                                          year: 'numeric',
+                                        })
+                                      : 'Baru Saja'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Right: Price, Stock & Action Buttons */}
+                            <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between gap-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-800">
+                              <div className="text-left lg:text-right">
+                                <span className="text-[11px] text-slate-400 block">
+                                  Harga & Ketersediaan:
+                                </span>
+                                <span className="text-lg sm:text-xl font-extrabold text-emerald-400">
+                                  Rp {feed.estimated_price_per_kg.toLocaleString('id-ID')}{' '}
+                                  <span className="text-xs text-slate-400 font-normal">/ kg</span>
+                                </span>
+                                <p className="text-[11px] text-slate-300">
+                                  Stok: <strong>{feed.stock_ton || 0} Ton</strong> ({feed.availability_status})
+                                </p>
+                              </div>
+
+                              {!feed.is_verified ? (
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    disabled={processingId === feed.id}
+                                    onClick={() => handleVerifyFeed(feed.id, true)}
+                                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition-all disabled:opacity-50"
+                                  >
+                                    <Check className="w-4 h-4" />
+                                    Verifikasi & Aktifkan di Peta
+                                  </button>
+                                  <button
+                                    disabled={processingId === feed.id}
+                                    onClick={() => handleVerifyFeed(feed.id, false)}
+                                    className="px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 text-xs font-semibold flex items-center gap-1 transition-all disabled:opacity-50"
+                                  >
+                                    <X className="w-4 h-4" />
+                                    Tolak
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    Centang Hijau Aktif
+                                  </span>
+                                  <button
+                                    disabled={processingId === feed.id}
+                                    onClick={() => handleToggleFeed(feed.id)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-rose-950/40 text-rose-300 border border-rose-800/40 hover:bg-rose-900/60 text-xs transition-all"
+                                  >
+                                    Cabut
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -952,72 +1319,136 @@ export default function AdminDashboardPage() {
                     <span>Database Titik Pakan Alternatif di Peta</span>
                   </h2>
                   <p className="text-xs text-slate-400">
-                    Verifikasi titik bahan pakan agar memiliki lencana centang hijau di peta publik
+                    Kelola dan verifikasi titik bahan baku pakan alternatif spasial di seluruh Indonesia
                   </p>
                 </div>
 
-                <span className="text-xs text-slate-300 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800">
-                  Total: <strong className="text-emerald-400">{feedSources.length} Titik</strong> •{' '}
-                  <span className="text-emerald-400">
-                    {feedSources.filter((f) => f.is_verified).length} Terverifikasi
-                  </span>
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {feedSources.map((feed) => (
-                  <div
-                    key={feed.id}
-                    className="p-4 rounded-2xl bg-[#0d1613] border border-emerald-950/80 hover:border-emerald-500/30 transition-all flex flex-col justify-between space-y-3"
-                  >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
-                          {feed.category}
-                        </span>
-                        {feed.is_verified ? (
-                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Terverifikasi
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30">
-                            Perlu Konfirmasi
-                          </span>
-                        )}
-                      </div>
-
-                      <h3 className="text-sm font-bold text-white line-clamp-1">{feed.name}</h3>
-                      <p className="text-xs text-slate-400 line-clamp-2">{feed.feed_material}</p>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-800/80 space-y-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">Harga per kg:</span>
-                        <strong className="text-emerald-400 font-extrabold">
-                          Rp {feed.estimated_price_per_kg.toLocaleString('id-ID')}
-                        </strong>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">Sumber Data:</span>
-                        <span className="text-slate-300 capitalize">{feed.source_type?.replace('_', ' ')}</span>
-                      </div>
-
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Filter Status Pakan */}
+                  <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800 text-xs">
+                    {(['all', 'pending', 'verified'] as const).map((st) => (
                       <button
-                        onClick={() => handleToggleFeed(feed.id)}
-                        className={`w-full py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                          feed.is_verified
-                            ? 'bg-rose-950/40 text-rose-300 border-rose-800/40 hover:bg-rose-900/60'
-                            : 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-600/40'
+                        key={st}
+                        onClick={() => setFeedFilter(st)}
+                        className={`px-3 py-1 rounded-md font-medium capitalize transition-all ${
+                          feedFilter === st
+                            ? 'bg-emerald-600 text-white font-semibold'
+                            : 'text-slate-400 hover:text-white'
                         }`}
                       >
-                        {feed.is_verified ? 'Batalkan Centang Hijau' : 'Verifikasi di Peta'}
+                        {st === 'all'
+                          ? `Semua (${feedSources.length})`
+                          : st === 'pending'
+                          ? `Perlu Verif (${pendingFeeds.length})`
+                          : `Terverifikasi (${feedSources.filter((f) => f.is_verified).length})`}
                       </button>
-                    </div>
+                    ))}
                   </div>
-                ))}
+                </div>
               </div>
+
+              {filteredFeeds.length === 0 ? (
+                <div className="p-12 text-center rounded-2xl bg-[#0d1613] border border-slate-800">
+                  <CheckCircle2 className="w-12 h-12 text-emerald-400/60 mx-auto mb-3" />
+                  <h3 className="text-base font-semibold text-white">Tidak ada titik pakan sesuai filter</h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Coba ganti filter status di atas untuk melihat data pakan lainnya.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredFeeds.map((feed) => (
+                    <div
+                      key={feed.id}
+                      className={`p-4 rounded-2xl bg-[#0d1613] border transition-all flex flex-col justify-between space-y-3 ${
+                        !feed.is_verified
+                          ? 'border-amber-500/50 shadow-md shadow-amber-500/5'
+                          : 'border-emerald-950/80 hover:border-emerald-500/30'
+                      }`}
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
+                            {feed.category}
+                          </span>
+                          {feed.is_verified ? (
+                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Terverifikasi
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30 flex items-center gap-1 animate-pulse">
+                              <Clock className="w-3 h-3" />
+                              Menunggu Verifikasi
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="text-sm font-bold text-white line-clamp-1">{feed.name}</h3>
+                        <p className="text-xs text-slate-400 line-clamp-2">{feed.feed_material}</p>
+
+                        <div className="pt-1 text-[11px] text-slate-400 space-y-0.5">
+                          <p className="truncate">
+                            Pemasok: <strong className="text-slate-200">{feed.supplier_name || 'Pemilik Pakan'}</strong>
+                          </p>
+                          <p className="truncate">
+                            Kontak: <span className="text-slate-300">{feed.contact_info}</span>
+                          </p>
+                          <p>
+                            Stok: <strong className="text-slate-200">{feed.stock_ton || 0} Ton</strong> ({feed.availability_status})
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400">Harga per kg:</span>
+                          <strong className="text-emerald-400 font-extrabold">
+                            Rp {feed.estimated_price_per_kg.toLocaleString('id-ID')}
+                          </strong>
+                        </div>
+
+                        {!feed.is_verified ? (
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <button
+                              disabled={processingId === feed.id}
+                              onClick={() => handleVerifyFeed(feed.id, true)}
+                              className="py-1.5 px-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 flex items-center justify-center gap-1 transition-all"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              Verifikasi
+                            </button>
+                            <button
+                              disabled={processingId === feed.id}
+                              onClick={() => handleVerifyFeed(feed.id, false)}
+                              className="py-1.5 px-2 rounded-xl text-xs font-semibold bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 flex items-center justify-center gap-1 transition-all"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              Tolak
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleToggleFeed(feed.id)}
+                              className="flex-1 py-1.5 rounded-xl text-xs font-semibold border border-rose-800/40 bg-rose-950/40 text-rose-300 hover:bg-rose-900/60 transition-all"
+                            >
+                              Batalkan Centang Hijau
+                            </button>
+                            <button
+                              onClick={() => handleDeleteFeed(feed.id)}
+                              title="Hapus titik pakan dari peta"
+                              className="p-1.5 rounded-xl text-xs font-semibold border border-slate-700 bg-slate-800/60 text-slate-400 hover:text-rose-400 hover:border-rose-800/60 transition-all"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/ui/Navbar';
 import {
@@ -8,10 +8,13 @@ import {
   SubscriptionPlanType,
   PaymentMethod,
   FeedCategory,
+  FeedSource,
 } from '@/lib/types';
 import {
   loadUsersFromStorage,
   submitSubscriptionPayment,
+  loadFeedSourcesFromStorage,
+  addFeedSourceToStorage,
 } from '@/lib/subscription-store';
 import {
   CheckCircle2,
@@ -28,6 +31,7 @@ import {
   ShieldCheck,
   ExternalLink,
   Users,
+  Clock,
 } from 'lucide-react';
 
 type PemasokTab = 'catalog' | 'stats' | 'subscription' | 'verification_status';
@@ -44,6 +48,25 @@ interface SupplierFeedItem {
   views_count: number;
   whatsapp_leads: number;
 }
+
+const loadProductsForSupplier = (supplierId: string): SupplierFeedItem[] => {
+  const allFeeds = loadFeedSourcesFromStorage();
+  const filtered = allFeeds.filter(
+    (f) => f.supplier_id === supplierId || (!f.supplier_id && supplierId === 'usr-supplier-01')
+  );
+  return filtered.map((f) => ({
+    id: f.id,
+    name: f.name,
+    feed_material: f.feed_material,
+    category: f.category,
+    price_per_kg: f.estimated_price_per_kg,
+    availability: f.availability_status || 'Tersedia',
+    stock_ton: f.stock_ton ?? 5,
+    is_verified: Boolean(f.is_verified),
+    views_count: f.is_verified ? 240 + ((f.id.charCodeAt(f.id.length - 1) * 7) % 300) : 15,
+    whatsapp_leads: f.is_verified ? 20 + ((f.id.charCodeAt(f.id.length - 1) * 3) % 70) : 2,
+  }));
+};
 
 export default function PemasokDashboardPage() {
   const [users, setUsers] = useState<UserProfile[]>(() => loadUsersFromStorage());
@@ -65,45 +88,12 @@ export default function PemasokDashboardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackNotice, setFeedbackNotice] = useState<{ type: 'success' | 'info'; message: string } | null>(null);
 
-  // Mock produk pakan milik pemasok
-  const [products, setProducts] = useState<SupplierFeedItem[]>([
-    {
-      id: 'prod-01',
-      name: 'Dedak Padi Super Halus & Bekatul',
-      feed_material: 'Dedak Padi Hasil Gilingan Padi Segar (Kadar Air < 13%)',
-      category: 'Limbah Pertanian',
-      price_per_kg: 3200,
-      availability: 'Melimpah',
-      stock_ton: 15.5,
-      is_verified: true,
-      views_count: 248,
-      whatsapp_leads: 34,
-    },
-    {
-      id: 'prod-02',
-      name: 'Tepung Maggot BSF Kering Berprotein 44%',
-      feed_material: 'Prepupa Maggot BSF Oven Higienis untuk Pengganti Tepung Ikan',
-      category: 'Limbah Perikanan & Ternak',
-      price_per_kg: 18500,
-      availability: 'Tersedia',
-      stock_ton: 4.2,
-      is_verified: true,
-      views_count: 512,
-      whatsapp_leads: 86,
-    },
-    {
-      id: 'prod-03',
-      name: 'Ampas Tahu Putih Kering Pres Mesin',
-      feed_material: 'Ampas Tahu Rendah Air (Pres Hidrolik) Sumber Protein Nabati 24%',
-      category: 'Limbah Agroindustri',
-      price_per_kg: 1800,
-      availability: 'Melimpah',
-      stock_ton: 22.0,
-      is_verified: false,
-      views_count: 175,
-      whatsapp_leads: 19,
-    },
-  ]);
+  // Produk pakan milik pemasok (terkoneksi langsung dengan database feeds)
+  const [products, setProducts] = useState<SupplierFeedItem[]>(() => {
+    const loadedUsers = loadUsersFromStorage();
+    const defaultSupplier = loadedUsers.find((u) => u.role === 'pemilik_pakan') || loadedUsers[3];
+    return defaultSupplier ? loadProductsForSupplier(defaultSupplier.id) : [];
+  });
 
   // Form Tambah Produk Pakan
   const [newProductName, setNewProductName] = useState('');
@@ -127,8 +117,27 @@ export default function PemasokDashboardPage() {
     const user = users.find((u) => u.id === userId);
     if (user) {
       setCurrentUser(user);
+      setProducts(loadProductsForSupplier(user.id));
     }
   };
+
+  // Sinkronisasi otomatis jika data pakan diverifikasi atau diubah oleh admin di tab lain
+  useEffect(() => {
+    const handleSync = () => {
+      if (currentUser) {
+        setProducts(loadProductsForSupplier(currentUser.id));
+        const loadedUsers = loadUsersFromStorage();
+        const updated = loadedUsers.find((u) => u.id === currentUser.id);
+        if (updated) setCurrentUser(updated);
+      }
+    };
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('focus', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('focus', handleSync);
+    };
+  }, [currentUser]);
 
   // Submit pembayaran langganan
   const handleSubmitPayment = (e: React.FormEvent) => {
@@ -173,34 +182,42 @@ export default function PemasokDashboardPage() {
     }
   };
 
-  // Tambah Produk Pakan Baru
+  // Tambah Produk Pakan Baru (Tersambung ke Antrean Verifikasi Admin)
   const handleAddProduct = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProductName || !newProductMaterial) return;
+    if (!newProductName || !newProductMaterial || !currentUser) return;
 
-    const newItem: SupplierFeedItem = {
-      id: `prod-${Date.now().toString().slice(-4)}`,
+    const newFeed: FeedSource = {
+      id: `feed-${Date.now().toString().slice(-6)}`,
+      supplier_id: currentUser.id,
+      supplier_name: currentUser.business_name,
       name: newProductName,
       feed_material: newProductMaterial,
       category: newProductCategory,
-      price_per_kg: Number(newProductPrice) || 3000,
-      availability: 'Tersedia',
+      target_livestock: ['Ayam Petelur (Layer)', 'Ayam Broiler (Pedaging)', 'Bebek / Itik (Petelur & Pedaging)'],
+      estimated_price_per_kg: Number(newProductPrice) || 3000,
+      availability_status: 'Tersedia',
       stock_ton: Number(newProductStock) || 5,
-      is_verified: currentUser?.is_verified || false,
-      views_count: 1,
-      whatsapp_leads: 0,
+      lat: currentUser.lat || -7.7295,
+      lng: currentUser.lng || 113.018,
+      contact_info: `${currentUser.name} (${currentUser.phone}) - ${currentUser.business_name}`,
+      is_verified: false, // Selalu false agar diaudit & diverifikasi Admin terlebih dahulu
+      source_type: 'pengajuan_pemasok',
+      last_verified_at: null,
+      created_at: new Date().toISOString(),
     };
 
-    setProducts([newItem, ...products]);
+    addFeedSourceToStorage(newFeed);
+    setProducts(loadProductsForSupplier(currentUser.id));
     setIsAddProductModalOpen(false);
     setNewProductName('');
     setNewProductMaterial('');
 
     setFeedbackNotice({
       type: 'success',
-      message: `Bahan pakan "${newProductName}" berhasil ditambahkan ke katalog suplai Anda!`,
+      message: `Bahan pakan "${newProductName}" berhasil diajukan! Status saat ini "Perlu Konfirmasi" dan telah masuk ke Antrean Verifikasi Admin agar mendapatkan centang hijau resmi di peta.`,
     });
-    setTimeout(() => setFeedbackNotice(null), 5000);
+    setTimeout(() => setFeedbackNotice(null), 7000);
   };
 
   if (!currentUser) {
@@ -618,8 +635,9 @@ export default function PemasokDashboardPage() {
                             Terverifikasi
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                            Perlu Konfirmasi
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1 animate-pulse">
+                            <Clock className="w-3 h-3" />
+                            Menunggu Verifikasi Admin
                           </span>
                         )}
                       </div>

@@ -56,12 +56,15 @@ export interface UserGeoLocation {
 export interface FeedSource {
   id: string;
   region_id?: string;
+  supplier_id?: string;
+  supplier_name?: string;
   name: string;
   feed_material: string;
   category: FeedCategory | string;
   target_livestock: string[];
   estimated_price_per_kg: number;
   availability_status: AvailabilityStatus | string;
+  stock_ton?: number;
   lat: number;
   lng: number;
   distance_km?: number;
@@ -69,6 +72,7 @@ export interface FeedSource {
   is_verified?: boolean;
   source_type?: FeedSourceType | string;
   last_verified_at?: string | null;
+  verified_by?: string | null;
   created_at?: string;
 }
 
