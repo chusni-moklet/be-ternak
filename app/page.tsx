@@ -44,6 +44,7 @@ export default function PetaPakanDashboard() {
   // System & Modal status
   const [isSupabaseActive, setIsSupabaseActive] = useState<boolean>(false);
   const [isGeminiActive, setIsGeminiActive] = useState<boolean>(false);
+  const [aiEngineName, setAiEngineName] = useState<string>('Groq AI');
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [modalCoords, setModalCoords] = useState<[number, number] | null>(null);
 
@@ -236,7 +237,8 @@ export default function PetaPakanDashboard() {
       const json = await res.json();
       if (json.success && json.data) {
         setAnalysisResult(json.data);
-        setIsGeminiActive(json.isGeminiActive || false);
+        setIsGeminiActive(json.isAiActive ?? json.isGeminiActive ?? false);
+        if (json.aiEngine) setAiEngineName(json.aiEngine);
         if (json.isSupabaseActive) setIsSupabaseActive(true);
         if (json.nearbyFeeds) setFeedSources(json.nearbyFeeds);
       }
@@ -309,6 +311,7 @@ export default function PetaPakanDashboard() {
       <Navbar
         isSupabaseActive={isSupabaseActive}
         isGeminiActive={isGeminiActive}
+        aiEngineName={aiEngineName}
         currentRegionName={currentRegion.name}
       />
 

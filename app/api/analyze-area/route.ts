@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase';
-import { analyzeAreaWithGemini, isGeminiConfigured } from '@/lib/gemini';
+import { analyzeAreaWithGemini, isGeminiConfigured, isGroqConfigured, isAiConfigured } from '@/lib/gemini';
 import { INITIAL_FEED_SOURCES, calculateHaversineDistance } from '@/lib/mock-data';
 import { FeedSource, LivestockType, SupabaseFeedRow } from '@/lib/types';
 import { mapSupabaseFeedRow } from '@/lib/utils';
@@ -72,12 +72,17 @@ export async function POST(req: NextRequest) {
       avgTemp
     );
 
+    const isAiLive = isAiConfigured && !analysis.is_mock;
+    const aiEngineName = analysis.ai_engine || (isGroqConfigured ? 'Groq AI' : isGeminiConfigured ? 'Gemini AI' : 'Simulasi AI');
+
     return NextResponse.json({
       success: true,
       data: analysis,
       nearbyFeeds,
       isSupabaseActive: usedSupabase,
-      isGeminiActive: isGeminiConfigured && !analysis.is_mock,
+      isGeminiActive: isAiLive,
+      isAiActive: isAiLive,
+      aiEngine: aiEngineName,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Terjadi kesalahan internal server.';

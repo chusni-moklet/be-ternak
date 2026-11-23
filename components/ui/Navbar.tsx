@@ -17,12 +17,14 @@ import {
 interface NavbarProps {
   isSupabaseActive?: boolean;
   isGeminiActive?: boolean;
+  aiEngineName?: string;
   currentRegionName?: string;
 }
 
 export default function Navbar({
   isSupabaseActive = false,
   isGeminiActive = false,
+  aiEngineName,
   currentRegionName = 'Kecamatan Grati, Pasuruan',
 }: NavbarProps) {
   const pathname = usePathname();
@@ -133,9 +135,9 @@ export default function Navbar({
           />
         </div>
 
-        {/* Gemini Engine Status */}
+        {/* AI Engine Status */}
         <div
-          title={isGeminiActive ? 'Gemini 2.5 Flash Online' : 'AI Mode Simulasi Presisi'}
+          title={isGeminiActive ? `${aiEngineName || 'AI'} Online (Ultra-fast)` : 'AI Mode Simulasi Presisi'}
           className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium transition-colors ${
             isGeminiActive
               ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300'
@@ -143,7 +145,7 @@ export default function Navbar({
           }`}
         >
           <Sparkles className="w-3 h-3 text-emerald-400" />
-          <span className="hidden sm:inline">Gemini AI</span>
+          <span className="hidden sm:inline">{aiEngineName || (isGeminiActive ? 'Groq AI' : 'Simulasi AI')}</span>
           <span
             className={`w-1.5 h-1.5 rounded-full ${
               isGeminiActive ? 'bg-emerald-400 animate-pulse' : 'bg-teal-400'

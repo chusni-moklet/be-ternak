@@ -56,7 +56,7 @@ export default function AiInsightPanel({
           Siap Menganalisis Wilayah
         </h4>
         <p className="text-xs text-slate-400 max-w-xs mb-4 leading-relaxed">
-          Klik tombol di bawah untuk menghasilkan rekomendasi ransum pakan lokal presisi, panduan fermentasi/silase, dan analisis pasar berbasis Gemini 2.5 Flash.
+          Klik tombol di bawah untuk menghasilkan formulasi ransum pakan lokal presisi, panduan pengolahan/fermentasi, dan analisis pasar berbasis AI unggas presisi (Groq / Gemini).
         </p>
         <button
           onClick={onTriggerAnalyze}
@@ -74,14 +74,22 @@ export default function AiInsightPanel({
   return (
     <div className="space-y-4 p-4 text-slate-200">
       
-      {/* Simulation / Gemini Active Pill */}
-      {analysis.is_mock && (
+      {/* AI Active Status Pill */}
+      {analysis.is_mock ? (
         <div className="p-2.5 rounded-xl bg-teal-950/40 border border-teal-800/40 text-[11px] text-teal-300 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-teal-400"></span>
-            <span>Simulasi Agroklimat Presisi (Masukkan GEMINI_API_KEY untuk live API)</span>
+            <span>Simulasi Agroklimat Presisi (Masukkan GROQ_API_KEY / GEMINI_API_KEY untuk live API)</span>
           </div>
-          <span className="text-[10px] text-teal-400/80">Jawa Timur DB</span>
+          <span className="text-[10px] text-teal-400/80">Offline DB</span>
+        </div>
+      ) : (
+        <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-800/40 text-[11px] text-emerald-300 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Live AI Generated ({analysis.ai_engine || 'Groq AI'})</span>
+          </div>
+          <span className="text-[10px] text-emerald-400/80">Ultra-fast Inference</span>
         </div>
       )}
 

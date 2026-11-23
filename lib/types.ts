@@ -123,6 +123,7 @@ export interface AiAnalysisResult {
   source_feed_count: number;
   analyzed_at: string;
   is_mock?: boolean;
+  ai_engine?: string;
 }
 
 export interface AnalyzeAreaPayload {
