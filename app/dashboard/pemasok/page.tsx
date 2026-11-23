@@ -301,11 +301,17 @@ export default function PemasokDashboardPage() {
 
         <div className="flex items-center gap-2">
           {currentUser.is_verified ? (
-            <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+            <span
+              suppressHydrationWarning
+              className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold"
+            >
               ✓ Centang Hijau Aktif
             </span>
           ) : (
-            <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold animate-pulse">
+            <span
+              suppressHydrationWarning
+              className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold animate-pulse"
+            >
               ⏳ Menunggu Verifikasi
             </span>
           )}
@@ -410,6 +416,7 @@ export default function PemasokDashboardPage() {
 
                         {item.badge && (
                           <span
+                            suppressHydrationWarning
                             className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${item.badgeColor}`}
                           >
                             {item.badge}

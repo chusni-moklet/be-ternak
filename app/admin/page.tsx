@@ -311,7 +311,10 @@ export default function AdminDashboardPage() {
 
         <div className="flex items-center gap-2">
           {totalPendingVerification > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-bold animate-pulse">
+            <span
+              suppressHydrationWarning
+              className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-bold animate-pulse"
+            >
               {totalPendingVerification} Pending
             </span>
           )}
@@ -388,6 +391,7 @@ export default function AdminDashboardPage() {
 
                         {item.badge && (
                           <span
+                            suppressHydrationWarning
                             className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${item.badgeColor}`}
                           >
                             {item.badge}
@@ -558,12 +562,12 @@ export default function AdminDashboardPage() {
                     </div>
                   </div>
                   <div className="mt-3 flex items-baseline gap-2">
-                    <span className="text-3xl font-extrabold text-white">
+                    <span suppressHydrationWarning className="text-3xl font-extrabold text-white">
                       {totalPendingVerification}
                     </span>
                     <span className="text-xs text-amber-400 font-semibold">Pengajuan Baru</span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p suppressHydrationWarning className="text-[11px] text-slate-400 mt-1">
                     {pendingTxs.length} Pembayaran • {pendingFeeds.length} Titik Pakan
                   </p>
                 </div>
@@ -771,7 +775,10 @@ export default function AdminDashboardPage() {
                   <CreditCard className="w-4 h-4" />
                   <span>1. Pembayaran Langganan</span>
                   {pendingTxs.length > 0 && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-extrabold animate-pulse">
+                    <span
+                      suppressHydrationWarning
+                      className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-extrabold animate-pulse"
+                    >
                       {pendingTxs.length}
                     </span>
                   )}
@@ -788,7 +795,10 @@ export default function AdminDashboardPage() {
                   <Layers className="w-4 h-4" />
                   <span>2. Pengajuan Titik Pakan Baru</span>
                   {pendingFeeds.length > 0 && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-extrabold animate-pulse">
+                    <span
+                      suppressHydrationWarning
+                      className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-extrabold animate-pulse"
+                    >
                       {pendingFeeds.length} Baru
                     </span>
                   )}
