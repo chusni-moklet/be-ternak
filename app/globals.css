@@ -1,26 +1,140 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #090f0d;
+  --foreground: #f1f5f3;
+  --card: #0d1714;
+  --card-foreground: #f1f5f3;
+  --popover: #0d1714;
+  --popover-foreground: #f1f5f3;
+  --primary: #10b981;
+  --primary-foreground: #022c22;
+  --secondary: #13241f;
+  --secondary-foreground: #a7f3d0;
+  --muted: #152923;
+  --muted-foreground: #94a3b8;
+  --accent: #059669;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #1a332b;
+  --input: #152923;
+  --ring: #10b981;
+  --radius: 0.75rem;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbars for Dark Mode */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #090f0d;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e3a31;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #10b981;
+}
+
+/* Leaflet Container & Dark Mode Overrides */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  background: #0b1411 !important;
+  font-family: inherit;
+  z-index: 10;
+}
+
+/* Dark Mode Filter exclusively for OSM tiles (leaves markers & popups untouched) */
+.osm-dark-tiles .leaflet-tile-pane {
+  filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(92%) saturate(80%);
+}
+
+/* Hide scrollbars cleanly where requested */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom Dark Leaflet Popup */
+.leaflet-popup-content-wrapper {
+  background: #0d1815 !important;
+  color: #f1f5f3 !important;
+  border: 1px solid #1e3a31 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(16, 185, 129, 0.1) !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.leaflet-popup-content {
+  margin: 12px 14px !important;
+  line-height: 1.4 !important;
+}
+
+.leaflet-popup-tip {
+  background: #0d1815 !important;
+  border: 1px solid #1e3a31 !important;
+}
+
+.leaflet-popup-close-button {
+  color: #94a3b8 !important;
+  padding: 8px !important;
+}
+
+.leaflet-popup-close-button:hover {
+  color: #10b981 !important;
+}
+
+/* Marker Pulse Animation */
+@keyframes markerPulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 16px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.marker-target-pulse {
+  animation: markerPulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+/* Glassmorphism helpers */
+.glass-panel {
+  background: rgba(13, 24, 20, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(30, 58, 49, 0.7);
+}
+
+.glass-panel-elevated {
+  background: rgba(16, 30, 25, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(46, 88, 75, 0.8);
+  box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.5), 0 0 15px rgba(16, 185, 129, 0.08);
 }
