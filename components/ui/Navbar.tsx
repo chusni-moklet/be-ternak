@@ -135,13 +135,14 @@ export default function Navbar({
           />
         </div>
 
-        {/* AI Engine Status */}
-        <div
-          title={isGeminiActive ? `${aiEngineName || 'AI'} Online (Ultra-fast)` : 'AI Mode Simulasi Presisi'}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium transition-colors ${
+        {/* AI Engine Status & Quick Simulation Link */}
+        <Link
+          href="/dashboard/peternak/simulasi"
+          title="Buka Simulasi Usaha Layer AI"
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium transition-all hover:scale-105 cursor-pointer ${
             isGeminiActive
-              ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300'
-              : 'bg-teal-950/40 border-teal-800/40 text-teal-300'
+              ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300 hover:border-emerald-400'
+              : 'bg-teal-950/40 border-teal-800/40 text-teal-300 hover:border-teal-400'
           }`}
         >
           <Sparkles className="w-3 h-3 text-emerald-400" />
@@ -151,7 +152,7 @@ export default function Navbar({
               isGeminiActive ? 'bg-emerald-400 animate-pulse' : 'bg-teal-400'
             }`}
           />
-        </div>
+        </Link>
       </div>
     </header>
   );

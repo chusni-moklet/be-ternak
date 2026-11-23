@@ -262,3 +262,40 @@ export interface SavedRansum {
   created_at: string;
 }
 
+export interface LayerSimulationScenario {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+  params: {
+    populasiAwal: number;
+    modeAwal: 'pullet' | 'doc';
+    hargaBibit: number;
+    biayaKandang: number;
+    hdpPercent: number;
+    beratTelurGram: number;
+    feedIntakeGram: number;
+    deplesiPercent: number;
+    lamaSiklusBulan: number;
+    hargaJualTelurKg: number;
+    hargaPakanKg: number;
+    isUsingAiFeed: boolean;
+    biayaOvkPerEkorBulan: number;
+    gajiAnakKandangBulan: number;
+    listrikAirBulan: number;
+    hargaJualAfkirEkor: number;
+  };
+  results: {
+    populasiRataRata: number;
+    telurHarianKg: number;
+    pakanHarianKg: number;
+    fcr: number;
+    hppPerKg: number;
+    labaBersihBulan: number;
+    labaBersihTotal: number;
+    rcRatio: number;
+    paybackMonths: number;
+    savingsPerMonthVsCommercial?: number;
+  };
+}
+

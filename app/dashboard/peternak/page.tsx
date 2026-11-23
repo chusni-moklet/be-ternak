@@ -13,6 +13,8 @@ import {
   loadUsersFromStorage,
   loadSavedRansumsFromStorage,
   submitSubscriptionPayment,
+  getActiveUserId,
+  setActiveUserId,
 } from '@/lib/subscription-store';
 import { INITIAL_FEED_SOURCES } from '@/lib/mock-data';
 import {
@@ -33,6 +35,7 @@ import {
   ShieldCheck,
   Store,
   MessageCircle,
+  Calculator,
 } from 'lucide-react';
 
 type PeternakTab = 'overview' | 'recipes' | 'nearby_feeds' | 'subscription' | 'verification_status';
@@ -41,7 +44,13 @@ export default function PeternakDashboardPage() {
   const [users, setUsers] = useState<UserProfile[]>(() => loadUsersFromStorage());
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     const loaded = loadUsersFromStorage();
-    return loaded.find((u) => u.role === 'peternak') || loaded[1] || null;
+    const activeId = getActiveUserId();
+    return (
+      loaded.find((u) => u.id === activeId) ||
+      loaded.find((u) => u.role === 'peternak') ||
+      loaded[1] ||
+      null
+    );
   });
   const [savedRansums, setSavedRansums] = useState<SavedRansum[]>(() => loadSavedRansumsFromStorage());
 
@@ -77,6 +86,7 @@ export default function PeternakDashboardPage() {
     const user = users.find((u) => u.id === userId);
     if (user) {
       setCurrentUser(user);
+      setActiveUserId(user.id);
     }
   };
 
@@ -167,6 +177,14 @@ export default function PeternakDashboardPage() {
           icon: Layers,
           badge: 'Radius 15km',
           badgeColor: 'bg-slate-800 text-slate-300',
+        },
+        {
+          id: 'simulasi',
+          label: 'Simulasi Usaha Layer',
+          icon: Calculator,
+          badge: 'Baru',
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold',
+          href: '/dashboard/peternak/simulasi',
         },
       ],
     },
@@ -304,6 +322,40 @@ export default function PeternakDashboardPage() {
                   {group.items.map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.id;
+                    const itemHref = 'href' in item ? (item.href as string) : undefined;
+
+                    if (itemHref) {
+                      return (
+                        <Link
+                          key={item.id}
+                          href={itemHref}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group ${
+                            isActive
+                              ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-600/20 border border-teal-400/30'
+                              : 'text-slate-300 hover:text-white hover:bg-slate-900/80 border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 truncate">
+                            <Icon
+                              className={`w-4 h-4 shrink-0 transition-colors ${
+                                isActive ? 'text-white' : 'text-slate-400 group-hover:text-teal-400'
+                              }`}
+                            />
+                            <span className="truncate">{item.label}</span>
+                          </div>
+
+                          {item.badge && (
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${item.badgeColor}`}
+                            >
+                              {item.badge}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    }
+
                     return (
                       <button
                         key={item.id}

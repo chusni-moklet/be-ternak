@@ -4,6 +4,7 @@ import {
   SubscriptionPlanType,
   PaymentMethod,
   SavedRansum,
+  LayerSimulationScenario,
 } from './types';
 
 // ============================================================================
@@ -238,6 +239,46 @@ const STORAGE_KEY_USERS = 'petapakan_users_v1';
 const STORAGE_KEY_TXS = 'petapakan_txs_v1';
 const STORAGE_KEY_RANSUMS = 'petapakan_ransums_v1';
 const STORAGE_KEY_ACTIVE_USER = 'petapakan_active_user_id_v1';
+const STORAGE_KEY_SIMULATIONS = 'petapakan_layer_simulations_v1';
+
+export function loadSimulationScenariosFromStorage(userId?: string): LayerSimulationScenario[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SIMULATIONS);
+    if (!raw) return [];
+    const list: LayerSimulationScenario[] = JSON.parse(raw);
+    if (userId) {
+      return list.filter((s) => s.user_id === userId);
+    }
+    return list;
+  } catch (e) {
+    console.error('Failed to parse simulations from storage', e);
+    return [];
+  }
+}
+
+export function saveSimulationScenarioToStorage(scenario: LayerSimulationScenario): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = loadSimulationScenariosFromStorage();
+    const filtered = current.filter((s) => s.id !== scenario.id);
+    const updated = [scenario, ...filtered];
+    localStorage.setItem(STORAGE_KEY_SIMULATIONS, JSON.stringify(updated));
+  } catch (e) {
+    console.error('Failed to save simulation to storage', e);
+  }
+}
+
+export function deleteSimulationScenarioFromStorage(scenarioId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = loadSimulationScenariosFromStorage();
+    const updated = current.filter((s) => s.id !== scenarioId);
+    localStorage.setItem(STORAGE_KEY_SIMULATIONS, JSON.stringify(updated));
+  } catch (e) {
+    console.error('Failed to delete simulation from storage', e);
+  }
+}
 
 export function loadUsersFromStorage(): UserProfile[] {
   if (typeof window === 'undefined') return INITIAL_USERS;
