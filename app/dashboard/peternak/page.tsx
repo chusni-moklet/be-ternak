@@ -37,6 +37,7 @@ import {
   MessageCircle,
   Calculator,
   ScanEye,
+  ClipboardList,
 } from 'lucide-react';
 
 type PeternakTab = 'overview' | 'recipes' | 'nearby_feeds' | 'subscription' | 'verification_status';
@@ -194,11 +195,19 @@ export default function PeternakDashboardPage() {
         },
         {
           id: 'recording',
-          label: 'AI Health & Recording',
+          label: 'Recording Harian',
+          icon: ClipboardList,
+          badge: 'Harian',
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold',
+          href: '/dashboard/peternak/recording',
+        },
+        {
+          id: 'health-scan',
+          label: 'AI Health Scan',
           icon: ScanEye,
           badge: 'AI Vision',
           badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold',
-          href: '/dashboard/peternak/recording',
+          href: '/dashboard/peternak/health-scan',
         },
       ],
     },

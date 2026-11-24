@@ -85,7 +85,14 @@ import {
   Area,
 } from 'recharts';
 
-export default function DailyRecordingPage() {
+interface DailyRecordingPageProps {
+  initialTab?: 'recording' | 'health';
+}
+
+export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRecordingPageProps) {
+  // Active sub-menu tab: 'recording' vs 'health'
+  const [activeTab, setActiveTab] = useState<'recording' | 'health'>(initialTab);
+
   // 1. Data User & Akun Aktif (Inisialisasi seragam untuk mencegah hydration mismatch)
   const defaultFarmer = INITIAL_USERS.find((u) => u.role === 'peternak') || INITIAL_USERS[1];
   const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
@@ -272,13 +279,11 @@ export default function DailyRecordingPage() {
     const currentPopTotal = activeUnits.reduce((acc, k) => acc + (k.current_population || k.initial_population), 0);
     const survivalRate = initialPopTotal > 0 ? (currentPopTotal / initialPopTotal) * 100 : 100;
 
-    // Filter log recording untuk unit kandang aktif
     const relevantLogs =
       selectedKandangId === 'all'
         ? recordings
         : recordings.filter((r) => r.kandang_id === selectedKandangId);
 
-    // Ambil log hari terakhir untuk snapshot harian
     const latestLogsByKandang = new Map<string, DailyRecordingLog>();
     const sortedChronological = [...relevantLogs].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -306,19 +311,11 @@ export default function DailyRecordingPage() {
       todayBrokenKg += l.broken_egg_kg;
     });
 
-    // Rata-rata bobot telur
     const avgEggWeight = todayEggCount > 0 ? (todayEggKg * 1000) / todayEggCount : 62.5;
-
-    // HDP Hari ini
     const todayHdp = currentPopTotal > 0 ? (todayEggCount / currentPopTotal) * 100 : 0;
-
-    // Feed Intake per ekor
     const feedIntakeGram = currentPopTotal > 0 ? (todayFeedKg * 1000) / currentPopTotal : 0;
-
-    // FCR Hari ini
     const fcr = todayEggKg > 0 ? todayFeedKg / todayEggKg : 2.05;
 
-    // Status Efisiensi FCR
     let fcrStatus: 'Sangat Efisien' | 'Normal' | 'Boros Pakan' = 'Normal';
     let fcrBadgeColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
     if (fcr <= 2.10) {
@@ -332,7 +329,6 @@ export default function DailyRecordingPage() {
       fcrBadgeColor = 'bg-rose-500/20 text-rose-300 border-rose-500/30';
     }
 
-    // Persentase Deplesi Total
     const deplesiRate = initialPopTotal > 0 ? ((totalDeadAccum + totalCullAccum) / initialPopTotal) * 100 : 0;
     const brokenRate = (todayEggKg + todayBrokenKg) > 0 ? (todayBrokenKg / (todayEggKg + todayBrokenKg)) * 100 : 0;
 
@@ -364,7 +360,6 @@ export default function DailyRecordingPage() {
         ? recordings
         : recordings.filter((r) => r.kandang_id === selectedKandangId);
 
-    // Kelompokkan per tanggal
     const mapByDate = new Map<string, { totalEggs: number; totalPop: number; totalFeed: number }>();
     logs.forEach((l) => {
       const prev = mapByDate.get(l.date) || { totalEggs: 0, totalPop: 0, totalFeed: 0 };
@@ -512,7 +507,6 @@ export default function DailyRecordingPage() {
   const handleApplyToForm = () => {
     if (!scanResult) return;
 
-    // 1. Tentukan kondisi kandang berdasarkan status & risiko
     let matchedCondition = 'Normal';
     const statusLower = scanResult.status_kondisi.toLowerCase();
     if (statusLower.includes('heat') || statusLower.includes('panting') || statusLower.includes('panas')) {
@@ -525,21 +519,25 @@ export default function DailyRecordingPage() {
 
     setRecordCondition(matchedCondition);
 
-    // 2. Format catatan diagnosis dokter hewan AI
     const aiNote = `[AI Vision Groq]: ${scanResult.status_kondisi} (${scanResult.tingkat_risiko}) - Gejala: ${scanResult.dugaan_gejala}. Tindakan: ${scanResult.rekomendasi_tindakan}`;
     setRecordNotes(aiNote);
 
+    // Switch ke tab recording agar user langsung melihat form
+    setActiveTab('recording');
+
     setFeedbackNotice({
       type: 'success',
-      message: '✓ Hasil diagnosis & saran tindakan AI berhasil disinkronkan ke Form Recording!',
+      message: '✓ Hasil diagnosis & saran tindakan AI berhasil diterapkan ke Form Recording Harian!',
     });
     setTimeout(() => setFeedbackNotice(null), 4000);
 
     // Scroll halus ke form recording
-    const formElem = document.getElementById('form-recording-harian');
-    if (formElem) {
-      formElem.scrollIntoView({ behavior: 'smooth' });
-    }
+    setTimeout(() => {
+      const formElem = document.getElementById('form-recording-harian');
+      if (formElem) {
+        formElem.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
   };
 
   // 10. Handler: Tambah Unit Kandang
@@ -643,7 +641,6 @@ export default function DailyRecordingPage() {
       });
       setTimeout(() => setFeedbackNotice(null), 4000);
 
-      // Reset mortality and special notes
       setRecordDead(0);
       setRecordCull(0);
       setRecordNotes('');
@@ -678,7 +675,7 @@ export default function DailyRecordingPage() {
     document.body.removeChild(link);
   };
 
-  // Menu Navigation Sidebar Items
+  // Split Navigation Menu Sidebar Items
   const navMenuItems = [
     {
       group: 'MANAJEMEN KANDANG',
@@ -712,11 +709,22 @@ export default function DailyRecordingPage() {
           href: '/dashboard/peternak/simulasi',
         },
         {
-          label: 'AI Health & Recording',
-          icon: ScanEye,
-          active: true,
-          badge: 'AI Vision',
+          label: 'Recording Harian',
+          icon: ClipboardList,
+          active: activeTab === 'recording',
+          badge: 'Harian',
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold',
           href: '/dashboard/peternak/recording',
+          onClick: () => setActiveTab('recording'),
+        },
+        {
+          label: 'AI Health Scan',
+          icon: ScanEye,
+          active: activeTab === 'health',
+          badge: 'AI Vision',
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold',
+          href: '/dashboard/peternak/health-scan',
+          onClick: () => setActiveTab('health'),
         },
       ],
     },
@@ -763,7 +771,7 @@ export default function DailyRecordingPage() {
 
         <div className="flex items-center gap-2">
           <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
-            AI Vision & Log
+            {activeTab === 'health' ? 'AI Vision' : 'Recording'}
           </span>
           <span
             suppressHydrationWarning
@@ -848,7 +856,12 @@ export default function DailyRecordingPage() {
                       <Link
                         key={itemIdx}
                         href={item.href}
-                        onClick={() => setIsMobileMenuOpen(false)}
+                        onClick={(e) => {
+                          setIsMobileMenuOpen(false);
+                          if ((item as any).onClick) {
+                            (item as any).onClick();
+                          }
+                        }}
                         className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                           item.active
                             ? 'bg-emerald-500 text-slate-950 font-bold shadow-lg shadow-emerald-500/20'
@@ -923,19 +936,32 @@ export default function DailyRecordingPage() {
                   Portal Peternak
                 </Link>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-                <span className="text-emerald-400 font-semibold">AI Health Scan & Recording Harian</span>
+                <span className="text-emerald-400 font-semibold">
+                  {activeTab === 'recording' ? 'Recording Harian Layer' : 'AI Health Vision Scan'}
+                </span>
               </div>
               <div className="flex items-center gap-2.5">
                 <h1 className="text-xl lg:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-                  <ScanEye className="w-6 h-6 text-emerald-400 shrink-0" />
-                  AI Health Scan & Recording Harian Layer
+                  {activeTab === 'recording' ? (
+                    <>
+                      <ClipboardList className="w-6 h-6 text-emerald-400 shrink-0" />
+                      Recording Harian & Analitik Layer
+                    </>
+                  ) : (
+                    <>
+                      <ScanEye className="w-6 h-6 text-emerald-400 shrink-0" />
+                      AI Health Vision Scanner Layer
+                    </>
+                  )}
                 </h1>
                 <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  Groq Vision AI Active
+                  {activeTab === 'recording' ? 'Log & Performa Harian' : 'Groq Vision AI Active'}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Monitoring kesehatan ayam layer berbasis AI Vision multimodal (Groq) & pencatatan performa harian (HDP, FCR, Deplesi)
+                {activeTab === 'recording'
+                  ? 'Pencatatan produksi telur harian (HDP, FCR, Deplesi) dan monitoring tren performa kandang layer'
+                  : 'Monitoring kesehatan ayam layer berbasis AI Vision multimodal (Groq) & deteksi gejala klinis secara instan'}
               </p>
             </div>
 
@@ -982,13 +1008,74 @@ export default function DailyRecordingPage() {
               </button>
 
               {/* Tombol Export CSV */}
+              {activeTab === 'recording' && (
+                <button
+                  onClick={handleExportCsv}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0F1D17] hover:bg-[#162A21] text-slate-300 hover:text-white border border-[#1E352B] font-semibold text-xs transition-all cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden sm:inline">Export CSV</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ================================================================= */}
+          {/* PROMINENT TOP TAB SWITCHER (SPLIT MENU PENUH TANPA SCROLL)        */}
+          {/* ================================================================= */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-1.5 rounded-2xl bg-[#0A1410] border border-[#1E352B]">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <button
-                onClick={handleExportCsv}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0F1D17] hover:bg-[#162A21] text-slate-300 hover:text-white border border-[#1E352B] font-semibold text-xs transition-all cursor-pointer"
+                type="button"
+                onClick={() => setActiveTab('recording')}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'recording'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                    : 'text-slate-400 hover:text-white hover:bg-[#12241b]'
+                }`}
               >
-                <Download className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline">Export CSV</span>
+                <ClipboardList className="w-4 h-4" />
+                <span>1. Recording Harian & Analitik</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                    activeTab === 'recording'
+                      ? 'bg-slate-950/20 text-slate-950'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  }`}
+                >
+                  Harian
+                </span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('health')}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'health'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                    : 'text-slate-400 hover:text-white hover:bg-[#12241b]'
+                }`}
+              >
+                <ScanEye className="w-4 h-4" />
+                <span>2. AI Health Vision Scanner</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                    activeTab === 'health'
+                      ? 'bg-slate-950/20 text-slate-950'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  }`}
+                >
+                  Groq Multimodal
+                </span>
+              </button>
+            </div>
+
+            <div className="text-[11px] text-slate-400 px-3 hidden md:block">
+              {activeTab === 'recording' ? (
+                <span>Form pencatatan langsung tampil di bawah tanpa perlu scroll</span>
+              ) : (
+                <span>Diagnosis visual ayam & kotoran dengan AI Veteriner</span>
+              )}
             </div>
           </div>
 
@@ -1011,951 +1098,1016 @@ export default function DailyRecordingPage() {
           )}
 
           {/* ================================================================= */}
-          {/* SECTION: STATUS UNIT KANDANG AKTIF (GRID CARDS)                    */}
+          {/* TAB 1: RECORDING HARIAN & ANALITIK (TAMPIL LANGSUNG DI ATAS)     */}
           {/* ================================================================= */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                <Building2 className="w-3.5 h-3.5 text-emerald-400" />
-                Status Unit Kandang Aktif ({userKandangs.length} Unit)
-              </h2>
-              <span className="text-[11px] text-slate-400">
-                Klik kartu untuk memfilter log & grafik secara langsung
-              </span>
-            </div>
+          {activeTab === 'recording' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              {/* SECTION: STATUS UNIT KANDANG AKTIF (GRID CARDS) */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                    <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                    Status Unit Kandang Aktif ({userKandangs.length} Unit)
+                  </h2>
+                  <span className="text-[11px] text-slate-400">
+                    Klik kartu untuk memfilter log & grafik secara langsung
+                  </span>
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {userKandangs.map((k) => {
-                const isSelected = selectedKandangId === k.id;
-                const livePop = k.current_population || k.initial_population;
-                const rate = k.initial_population > 0 ? ((livePop / k.initial_population) * 100).toFixed(1) : '100';
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {userKandangs.map((k) => {
+                    const isSelected = selectedKandangId === k.id;
+                    const livePop = k.current_population || k.initial_population;
+                    const rate = k.initial_population > 0 ? ((livePop / k.initial_population) * 100).toFixed(1) : '100';
 
-                return (
-                  <div
-                    key={k.id}
-                    onClick={() => setSelectedKandangId(isSelected ? 'all' : k.id)}
-                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
-                      isSelected
-                        ? 'bg-gradient-to-br from-[#122b20] to-[#0A1410] border-emerald-500 shadow-lg shadow-emerald-500/10'
-                        : 'bg-[#0F1D17] hover:bg-[#13261e] border-[#1E352B]'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <h3 className="text-sm font-bold text-white">{k.name}</h3>
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                              k.house_type === 'Closed House'
-                                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                                : k.house_type === 'Semi-Closed'
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                            }`}
-                          >
-                            {k.house_type}
-                          </span>
+                    return (
+                      <div
+                        key={k.id}
+                        onClick={() => setSelectedKandangId(isSelected ? 'all' : k.id)}
+                        className={`p-3.5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
+                          isSelected
+                            ? 'bg-gradient-to-br from-[#122b20] to-[#0A1410] border-emerald-500 shadow-lg shadow-emerald-500/10'
+                            : 'bg-[#0F1D17] hover:bg-[#13261e] border-[#1E352B]'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <h3 className="text-sm font-bold text-white">{k.name}</h3>
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                  k.house_type === 'Closed House'
+                                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                                    : k.house_type === 'Semi-Closed'
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                }`}
+                              >
+                                {k.house_type}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              Strain: <span className="text-slate-300 font-semibold">{k.strain}</span> • Umur: {k.age_weeks} Minggu
+                            </p>
+                          </div>
+
+                          {isSelected && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500 text-slate-950">
+                              Aktif
+                            </span>
+                          )}
                         </div>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
-                          Strain: <span className="text-slate-300 font-semibold">{k.strain}</span> • Umur: {k.age_weeks} Minggu
+
+                        {/* Population bar */}
+                        <div className="space-y-1 pt-1">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-400">Populasi Hidup:</span>
+                            <span className="font-bold text-emerald-300">
+                              {livePop.toLocaleString('id-ID')} / {k.initial_population.toLocaleString('id-ID')} ekor
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-emerald-500 rounded-full transition-all"
+                              style={{ width: `${Math.min(100, Math.max(0, Number(rate)))}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-[9px] text-slate-500">
+                            <span>Daya Hidup: {rate}%</span>
+                            <span>Chick-in: {k.chick_in_date}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* SECTION: 4 KARTU KPI UTAMA */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Card 1: Populasi Hidup */}
+                <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400">Populasi Hidup</span>
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                      <Activity className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-2xl font-black text-white">
+                        {kpiData.currentPopTotal.toLocaleString('id-ID')}
+                      </span>
+                      <span className="text-xs text-slate-400">ekor</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        {kpiData.survivalRate.toFixed(1)}% Daya Hidup
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        Awal: {kpiData.initialPopTotal.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 2: Produksi Telur */}
+                <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400">Produksi Telur Terbaru</span>
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                      <Egg className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-2xl font-black text-white">
+                        {kpiData.todayEggKg.toFixed(1)}
+                      </span>
+                      <span className="text-xs text-slate-400">kg/hari</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        HDP {kpiData.todayHdp.toFixed(1)}%
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        {kpiData.todayEggCount.toLocaleString('id-ID')} butir ({kpiData.avgEggWeight.toFixed(1)}g)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 3: Pakan & FCR Harian */}
+                <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400">Pakan & FCR Harian</span>
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                      <Scale className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-2xl font-black text-white">
+                        {kpiData.fcr.toFixed(2)}
+                      </span>
+                      <span className="text-xs text-slate-400">FCR</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${kpiData.fcrBadgeColor}`}>
+                        {kpiData.fcrStatus}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {kpiData.todayFeedKg} kg ({kpiData.feedIntakeGram.toFixed(0)} g/ekor)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 4: Deplesi & Telur Retak */}
+                <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400">Deplesi & Telur Retak</span>
+                    <div className="w-7 h-7 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+                      <AlertTriangle className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-2xl font-black text-white">
+                        {(kpiData.totalDeadAccum + kpiData.totalCullAccum).toLocaleString('id-ID')}
+                      </span>
+                      <span className="text-xs text-slate-400">ekor deplesi</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                        Deplesi {kpiData.deplesiRate.toFixed(2)}%
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        Retak {kpiData.todayBrokenKg.toFixed(1)} kg ({kpiData.brokenRate.toFixed(1)}%)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* QUICK SHORTCUT BANNER KE AI HEALTH SCAN */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/60 via-[#0F1D17] to-slate-900/60 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0">
+                    <ScanEye className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white">Periksa Kesehatan Ayam dengan AI Vision?</span>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500 text-slate-950">
+                        Groq Vision
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400">
+                      Foto ayam panting (heat stress), mata berair, atau kotoran encer untuk memperoleh diagnosis dokter hewan instan.
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('health')}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 border border-emerald-500/40 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <span>Buka AI Health Scanner</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* SECTION: FORM INPUT RECORDING & GRAFIK (2 KOLOM LANGSUNG TERLIHAT) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* KOLOM KIRI (5 Kolom): FORM INPUT RECORDING HARIAN */}
+                <div
+                  id="form-recording-harian"
+                  className="lg:col-span-5 bg-[#0F1D17] border border-[#1E352B] rounded-2xl p-4 lg:p-5 space-y-4 shadow-xl"
+                >
+                  <div className="flex items-center justify-between pb-2 border-b border-[#1E352B]">
+                    <div className="flex items-center gap-2">
+                      <ClipboardList className="w-5 h-5 text-emerald-400" />
+                      <h2 className="text-sm font-bold text-white">Input Recording Harian</h2>
+                    </div>
+                    <span className="text-[11px] text-slate-400">
+                      {new Date(recordDate).toLocaleDateString('id-ID', {
+                        weekday: 'long',
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  </div>
+
+                  <form onSubmit={handleSaveRecording} className="space-y-3.5 text-xs">
+                    {/* Tanggal & Pilihan Unit Kandang */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                          Tanggal Catat:
+                        </label>
+                        <input
+                          type="date"
+                          value={recordDate}
+                          onChange={(e) => setRecordDate(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 font-medium"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1">
+                          <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                          Unit Kandang:
+                        </label>
+                        <select
+                          value={recordKandangId}
+                          onChange={(e) => setRecordKandangId(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
+                          required
+                        >
+                          {userKandangs.map((k) => (
+                            <option key={k.id} value={k.id}>
+                              {k.name} ({k.current_population || k.initial_population} ekor)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Populasi Berjalan Info Pill */}
+                    {activeFormKandang && (
+                      <div className="p-2.5 rounded-xl bg-[#09140f] border border-[#1E352B] flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">Populasi Aktif Kandang:</span>
+                        <span className="font-bold text-emerald-300">
+                          {(activeFormKandang.current_population || activeFormKandang.initial_population).toLocaleString('id-ID')} ekor
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Mortalitas: Ayam Mati & Afkir */}
+                    <div className="p-3 rounded-xl bg-[#09140f] border border-[#1E352B] space-y-2">
+                      <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider block">
+                        Kematian & Afkir (Deplesi Hari Ini):
+                      </span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[11px] text-slate-300">Ayam Mati (ekor):</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={recordDead}
+                            onChange={(e) => setRecordDead(Number(e.target.value))}
+                            className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-rose-500 font-bold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] text-slate-300">Ayam Afkir (ekor):</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={recordCull}
+                            onChange={(e) => setRecordCull(Number(e.target.value))}
+                            className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-rose-500 font-bold"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Produksi Telur Utuh (Kg & Butir) */}
+                    <div className="p-3 rounded-xl bg-[#09140f] border border-[#1E352B] space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                          Produksi Telur Utuh:
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-400">
+                          Live HDP: {formPreview.hdp}%
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[11px] text-slate-300">Berat Total (kg):</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={recordEggKg}
+                            onChange={(e) => handleEggKgChange(Number(e.target.value))}
+                            className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-amber-500 font-bold"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] text-slate-300">Jumlah Butir (est):</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={recordEggCount}
+                            onChange={(e) => setRecordEggCount(Number(e.target.value))}
+                            className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-amber-500 font-bold"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1 pt-1">
+                        <label className="text-[11px] text-slate-300">Telur Retak / Bentes (kg):</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          value={recordBrokenKg}
+                          onChange={(e) => setRecordBrokenKg(Number(e.target.value))}
+                          className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-slate-300 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Konsumsi Pakan & Resep */}
+                    <div className="p-3 rounded-xl bg-[#09140f] border border-[#1E352B] space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                          Konsumsi Pakan Hari Ini:
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-300">
+                          Est. FCR: {formPreview.fcr} ({formPreview.feedIntake} g/ekor)
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[11px] text-slate-300">Jumlah Pakan (kg):</label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            value={recordFeedKg}
+                            onChange={(e) => setRecordFeedKg(Number(e.target.value))}
+                            className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-emerald-500 font-bold"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] text-slate-300">Resep Ransum:</label>
+                          <select
+                            value={recordFeedType}
+                            onChange={(e) => setRecordFeedType(e.target.value)}
+                            className="w-full px-2 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 text-xs truncate"
+                          >
+                            <option value="Ransum be-ternak AI #1">Ransum be-ternak AI #1</option>
+                            <option value="Ransum be-ternak AI #2">Ransum be-ternak AI #2</option>
+                            {savedRansums.map((r) => (
+                              <option key={r.id} value={r.title}>
+                                {r.title}
+                              </option>
+                            ))}
+                            <option value="Konsentrat Pabrikan Komplit">Konsentrat Pabrikan Komplit</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Kondisi Kandang & Catatan Tambahan (Bisa auto-fill dari AI Health Vision) */}
+                    <div className="space-y-2">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
+                          <span>Kondisi Umum / Status Cuaca:</span>
+                          {recordCondition !== 'Normal' && (
+                            <span className="text-[10px] text-amber-400 font-bold">
+                              Status Khusus Terpilih
+                            </span>
+                          )}
+                        </label>
+                        <select
+                          value={recordCondition}
+                          onChange={(e) => setRecordCondition(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
+                        >
+                          <option value="Normal">Normal (Sehat Optimal)</option>
+                          <option value="Vitamin Anti-Stres">Diberikan Vitamin Anti-Stres</option>
+                          <option value="Heat Stress">Heat Stress (Suhu Siang Panas)</option>
+                          <option value="Vaksin ND-IB">Jadwal Vaksinasi ND-IB</option>
+                          <option value="Sakit / Perlu Karantina">Sakit / Perlu Karantina & Pengobatan</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                            Catatan Khusus (Tersinkron AI Vision):
+                          </span>
+                          {recordNotes && (
+                            <button
+                              type="button"
+                              onClick={() => setRecordNotes('')}
+                              className="text-[10px] text-slate-400 hover:text-rose-400"
+                            >
+                              Hapus Catatan
+                            </button>
+                          )}
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={recordNotes}
+                          onChange={(e) => setRecordNotes(e.target.value)}
+                          placeholder="Catatan tambahan penanganan pakan, kebersihan kotoran, atau hasil AI Vision..."
+                          className="w-full px-3 py-2 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Submit button */}
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <CalendarCheck className="w-4 h-4" />
+                      <span>{isSubmitting ? 'Menyimpan Recording...' : 'Simpan Log Recording Harian'}</span>
+                    </button>
+                  </form>
+                </div>
+
+                {/* KOLOM KANAN (7 Kolom): GRAFIK TREN HDP & FCR HARIAN */}
+                <div className="lg:col-span-7 space-y-4">
+                  {/* Chart 1: Tren HDP (%) vs Target Standar Breeder */}
+                  <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#1E352B]">
+                      <div>
+                        <h3 className="text-xs font-bold text-white flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4 text-emerald-400" />
+                          Tren Hen-Day Production (HDP %) vs Standar Breeder
+                        </h3>
+                        <p className="text-[10px] text-slate-400">
+                          Standar puncak produksi strain Lohmann & ISA Brown (88% - 92%)
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Realisasi HDP
+                        </span>
+                        <span className="flex items-center gap-1 text-slate-400">
+                          <span className="w-2.5 h-0.5 bg-amber-400" /> Target Min (88%)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="h-56 w-full pt-2">
+                      {chartHdpData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={chartHdpData}>
+                            <defs>
+                              <linearGradient id="colorHdp" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#10B981" stopOpacity={0.4} />
+                                <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1E352B" />
+                            <XAxis dataKey="label" stroke="#64748B" fontSize={10} />
+                            <YAxis domain={[75, 100]} stroke="#64748B" fontSize={10} unit="%" />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: '#0A1410',
+                                borderColor: '#1E352B',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                              }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="target_min"
+                              stroke="#F59E0B"
+                              strokeDasharray="4 4"
+                              strokeWidth={1.5}
+                              dot={false}
+                              name="Target Min Breeder (88%)"
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="hdp"
+                              stroke="#10B981"
+                              strokeWidth={2.5}
+                              fillOpacity={1}
+                              fill="url(#colorHdp)"
+                              name="HDP Aktual (%)"
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-xs text-slate-500">
+                          Belum ada data rekaman untuk ditampilkan pada grafik.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Chart 2: Konsumsi Pakan (kg) & FCR Harian */}
+                  <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#1E352B]">
+                      <div>
+                        <h3 className="text-xs font-bold text-white flex items-center gap-2">
+                          <Scale className="w-4 h-4 text-emerald-400" />
+                          Konsumsi Pakan Harian & Efisiensi FCR
+                        </h3>
+                        <p className="text-[10px] text-slate-400">
+                          Rasio konversi pakan terhadap bobot telur (Target FCR &le; 2.15)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="h-52 w-full pt-2">
+                      {chartHdpData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={chartHdpData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1E352B" />
+                            <XAxis dataKey="label" stroke="#64748B" fontSize={10} />
+                            <YAxis yAxisId="left" stroke="#64748B" fontSize={10} unit=" kg" />
+                            <YAxis yAxisId="right" orientation="right" domain={[1.8, 2.5]} stroke="#F59E0B" fontSize={10} />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: '#0A1410',
+                                borderColor: '#1E352B',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                              }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: '10px' }} />
+                            <Line
+                              yAxisId="left"
+                              type="monotone"
+                              dataKey="feedKg"
+                              stroke="#34D399"
+                              strokeWidth={2}
+                              dot={{ r: 3 }}
+                              name="Pakan Terpakai (kg)"
+                            />
+                            <Line
+                              yAxisId="right"
+                              type="monotone"
+                              dataKey="fcr"
+                              stroke="#F59E0B"
+                              strokeWidth={2}
+                              dot={{ r: 3 }}
+                              name="FCR Harian"
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-xs text-slate-500">
+                          Belum ada data pakan untuk ditampilkan.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION: TABEL RIWAYAT RECORDING HARIAN */}
+              <div className="rounded-2xl bg-[#0F1D17] border border-[#1E352B] p-4 lg:p-5 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#1E352B]">
+                  <div className="flex items-center gap-2">
+                    <CalendarCheck className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-sm font-bold text-white">
+                      Riwayat Log Recording Kandang ({filteredRecordings.length} Entri)
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Cari tanggal / catatan..."
+                      value={searchTableQuery}
+                      onChange={(e) => setSearchTableQuery(e.target.value)}
+                      className="px-3 py-1.5 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 w-44 sm:w-56"
+                    />
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-[#1E352B] text-slate-400 font-semibold text-[11px] bg-[#09140f]">
+                        <th className="py-2.5 px-3">Tanggal</th>
+                        <th className="py-2.5 px-3">Kandang</th>
+                        <th className="py-2.5 px-3 text-right">Populasi</th>
+                        <th className="py-2.5 px-3 text-right">Mati / Afkir</th>
+                        <th className="py-2.5 px-3 text-right">Telur Utuh</th>
+                        <th className="py-2.5 px-3 text-right">HDP (%)</th>
+                        <th className="py-2.5 px-3 text-right">Pakan (kg)</th>
+                        <th className="py-2.5 px-3 text-right">FCR</th>
+                        <th className="py-2.5 px-3">Kondisi / Catatan AI</th>
+                        <th className="py-2.5 px-3 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#1E352B]">
+                      {filteredRecordings.length > 0 ? (
+                        filteredRecordings.map((log) => (
+                          <tr key={log.id} className="hover:bg-[#12241b] transition-colors">
+                            <td className="py-2.5 px-3 font-semibold text-slate-200 whitespace-nowrap">
+                              {log.date}
+                            </td>
+                            <td className="py-2.5 px-3 font-medium text-emerald-300 whitespace-nowrap">
+                              {log.kandang_name}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-medium text-slate-300">
+                              {log.final_population.toLocaleString('id-ID')}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              {log.dead_count > 0 || log.cull_count > 0 ? (
+                                <span className="text-rose-400 font-bold">
+                                  {log.dead_count} / {log.cull_count}
+                                </span>
+                              ) : (
+                                <span className="text-slate-500">0</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-bold text-white whitespace-nowrap">
+                              {log.intact_egg_kg.toFixed(1)} kg ({log.intact_egg_count.toLocaleString('id-ID')} btr)
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                  log.hdp_percent >= 88
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                }`}
+                              >
+                                {log.hdp_percent.toFixed(1)}%
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-semibold text-slate-300">
+                              {log.feed_kg} kg
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                  log.fcr <= 2.10
+                                    ? 'bg-emerald-500/20 text-emerald-300'
+                                    : 'bg-blue-500/20 text-blue-300'
+                                }`}
+                              >
+                                {log.fcr.toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 max-w-xs">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-semibold text-slate-300 text-[11px] truncate">
+                                  {log.condition_note}
+                                </span>
+                                {log.notes && (
+                                  <span className="text-[10px] text-slate-400 truncate" title={log.notes}>
+                                    {log.notes}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <button
+                                onClick={() => handleDeleteLog(log.id)}
+                                className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                                title="Hapus baris log ini"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={10} className="py-8 text-center text-slate-500">
+                            Tidak ada riwayat recording yang cocok dengan filter.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================= */}
+          {/* TAB 2: AI HEALTH VISION SCANNER (FULL SCREEN EXPERIENCE)         */}
+          {/* ================================================================= */}
+          {activeTab === 'health' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              {/* STATUS UNIT KANDANG AKTIF RINGKAS */}
+              <div className="p-3.5 rounded-2xl bg-[#0F1D17] border border-[#1E352B] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
+                    <Building2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-white block">
+                      Target Pemeriksaan:{' '}
+                      <span className="text-emerald-400 font-black">
+                        {activeFormKandang?.name || 'Kandang Utama'}
+                      </span>
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Tipe: {activeFormKandang?.house_type || 'Open House'} • Strain: {activeFormKandang?.strain || 'ISA Brown'} • Populasi:{' '}
+                      {(activeFormKandang?.current_population || 2500).toLocaleString('id-ID')} ekor
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-slate-400">Ganti Unit Kandang:</span>
+                  <select
+                    value={recordKandangId}
+                    onChange={(e) => setRecordKandangId(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-xl bg-[#091510] border border-[#1E352B] text-emerald-300 text-xs font-semibold focus:outline-none"
+                  >
+                    {userKandangs.map((k) => (
+                      <option key={k.id} value={k.id}>
+                        {k.name} ({k.house_type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* DEDICATED AI HEALTH VISION SCANNER CARD */}
+              <div className="rounded-2xl bg-gradient-to-br from-[#0c2419] via-[#0F1D17] to-[#0A1410] border-2 border-emerald-500/40 p-4 lg:p-6 shadow-2xl space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-emerald-950">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-300 shadow-lg">
+                      <ScanEye className="w-6 h-6 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-base font-black text-white">AI Health Vision Scanner</h2>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-slate-950">
+                          Groq Multimodal
+                        </span>
+                      </div>
+                      <p className="text-xs text-emerald-300/80">
+                        Pemeriksaan klinis veteriner otomatis berbasis citra visual (mata, jengger, paruh panting, bulu, feses)
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Scan button */}
+                  <button
+                    onClick={handleExecuteScan}
+                    disabled={isScanning || !scanImageBase64}
+                    className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {isScanning ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Menganalisis Klinis...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Mulai Analisis AI Sekarang</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Presets and Upload Input */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                  {/* Kolom Kiri: Pilihan Sampel Preset & Upload */}
+                  <div className="lg:col-span-7 space-y-4">
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-300 block mb-2 uppercase tracking-wider">
+                        Pilih Sampel Preset Klinis (Uji Coba Langsung 1-Klik):
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        {VISION_SAMPLE_PRESETS.map((preset) => {
+                          const isSelected = selectedPresetId === preset.id;
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => handleSelectPreset(preset)}
+                              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                                isSelected
+                                  ? 'bg-emerald-950/80 border-emerald-500 ring-2 ring-emerald-500/30 shadow-lg'
+                                  : 'bg-[#091510] hover:bg-[#11241c] border-[#1E352B]'
+                              }`}
+                            >
+                              <div>
+                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border inline-block mb-1.5 ${preset.badgeColor}`}>
+                                  {preset.badge}
+                                </span>
+                                <div className="text-xs font-bold text-white line-clamp-1">
+                                  {preset.title}
+                                </div>
+                                <div className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">
+                                  {preset.sublabel}
+                                </div>
+                              </div>
+                              <div className="mt-2.5 flex items-center justify-between text-[10px] text-emerald-400 font-semibold">
+                                <span>Pilih Preset</span>
+                                {isSelected ? <Check className="w-4 h-4 text-emerald-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-500" />}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Upload Foto Mandiri */}
+                    <div className="pt-1">
+                      <span className="text-[11px] font-bold text-slate-300 block mb-2 uppercase tracking-wider">
+                        Atau Ambil Foto Langsung dari Kandang Anda:
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileUpload}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#0F1D17] hover:bg-[#162A21] border border-[#1E352B] text-slate-200 text-xs font-semibold cursor-pointer shadow-md"
+                        >
+                          <Upload className="w-4 h-4 text-emerald-400" />
+                          <span>Upload File Foto (Galeri/PC)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (fileInputRef.current) {
+                              fileInputRef.current.setAttribute('capture', 'environment');
+                              fileInputRef.current.click();
+                            }
+                          }}
+                          className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#0F1D17] hover:bg-[#162A21] border border-[#1E352B] text-slate-200 text-xs font-semibold cursor-pointer shadow-md"
+                        >
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                          <span>Buka Kamera HP Langsung</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {scanError && (
+                      <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{scanError}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Kolom Kanan: Preview Citra & Scanning Animation */}
+                  <div className="lg:col-span-5 flex flex-col justify-center">
+                    <div className="relative w-full h-52 sm:h-56 rounded-2xl bg-slate-950 border border-emerald-900/60 overflow-hidden flex items-center justify-center shadow-inner">
+                      {scanImagePreview ? (
+                        <>
+                          <img
+                            src={scanImagePreview}
+                            alt="Preview Scanner"
+                            className="w-full h-full object-contain"
+                          />
+
+                          {/* Scanning Laser Line Effect */}
+                          {isScanning && (
+                            <div className="absolute inset-0 pointer-events-none">
+                              <div className="w-full h-1 bg-gradient-to-r from-emerald-500 via-emerald-300 to-emerald-500 shadow-lg shadow-emerald-400 animate-pulse relative top-1/2 -translate-y-1/2" />
+                              <div className="absolute inset-0 bg-emerald-500/10 animate-pulse" />
+                            </div>
+                          )}
+
+                          <div className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-900/80 text-emerald-300 border border-emerald-500/30">
+                            {isScanning ? 'Menganalisis Visual...' : 'Citra Siap Di-scan'}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center p-6 text-slate-500 space-y-1.5">
+                          <Camera className="w-10 h-10 mx-auto text-slate-600" />
+                          <p className="text-xs font-semibold text-slate-400">Belum ada foto yang dipilih</p>
+                          <p className="text-[10px] text-slate-500 max-w-xs mx-auto">
+                            Pilih salah satu sampel di samping atau upload foto ayam Anda untuk memulai diagnosis
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Diagnosis Result View */}
+                {scanResult && (
+                  <div className="mt-4 p-5 rounded-2xl bg-[#07130e] border border-emerald-500/40 space-y-4 animate-in fade-in slide-in-from-top-2 shadow-xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <Stethoscope className="w-6 h-6 text-emerald-400 shrink-0" />
+                        <div>
+                          <span className="text-[11px] text-slate-400 font-semibold block">
+                            Hasil Analisis Klinis Dokter Hewan AI:
+                          </span>
+                          <h3 className="text-base sm:text-lg font-black text-white">
+                            {scanResult.status_kondisi}
+                          </h3>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                            scanResult.tingkat_risiko === 'Kritis'
+                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                              : scanResult.tingkat_risiko === 'Waspada'
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          }`}
+                        >
+                          Tingkat Risiko: {scanResult.tingkat_risiko}
+                        </span>
+                        <span className="text-[10px] text-slate-400 bg-slate-900/60 px-2 py-1 rounded-md border border-slate-800">
+                          {scanResult.model_used || 'Groq Vision'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
+                      <div className="p-3.5 rounded-xl bg-[#0c1a14] border border-[#1E352B] space-y-1.5">
+                        <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                          <Eye className="w-4 h-4" />
+                          Dugaan Temuan Visual Klinis:
+                        </span>
+                        <p className="text-slate-300 leading-relaxed text-[11px]">
+                          {scanResult.dugaan_gejala}
                         </p>
                       </div>
 
-                      {isSelected && (
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500 text-slate-950">
-                          Aktif
+                      <div className="p-3.5 rounded-xl bg-[#0c1a14] border border-[#1E352B] space-y-1.5">
+                        <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                          <HeartPulse className="w-4 h-4" />
+                          Rekomendasi Tindakan Veteriner:
                         </span>
-                      )}
-                    </div>
-
-                    {/* Population bar */}
-                    <div className="space-y-1 pt-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-400">Populasi Hidup:</span>
-                        <span className="font-bold text-emerald-300">
-                          {livePop.toLocaleString('id-ID')} / {k.initial_population.toLocaleString('id-ID')} ekor
-                        </span>
-                      </div>
-                      <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-500 rounded-full transition-all"
-                          style={{ width: `${Math.min(100, Math.max(0, Number(rate)))}%` }}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between text-[9px] text-slate-500">
-                        <span>Daya Hidup: {rate}%</span>
-                        <span>Chick-in: {k.chick_in_date}</span>
+                        <p className="text-slate-300 leading-relaxed text-[11px]">
+                          {scanResult.rekomendasi_tindakan}
+                        </p>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
 
-          {/* ================================================================= */}
-          {/* SECTION: 4 KARTU KPI UTAMA                                         */}
-          {/* ================================================================= */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* Card 1: Populasi Hidup */}
-            <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Populasi Hidup</span>
-                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                  <Activity className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-2xl font-black text-white">
-                    {kpiData.currentPopTotal.toLocaleString('id-ID')}
-                  </span>
-                  <span className="text-xs text-slate-400">ekor</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    {kpiData.survivalRate.toFixed(1)}% Daya Hidup
-                  </span>
-                  <span className="text-[10px] text-slate-500">
-                    Awal: {kpiData.initialPopTotal.toLocaleString('id-ID')}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 2: Produksi Telur */}
-            <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Produksi Telur Terbaru</span>
-                <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                  <Egg className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-2xl font-black text-white">
-                    {kpiData.todayEggKg.toFixed(1)}
-                  </span>
-                  <span className="text-xs text-slate-400">kg/hari</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    HDP {kpiData.todayHdp.toFixed(1)}%
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-medium">
-                    {kpiData.todayEggCount.toLocaleString('id-ID')} butir ({kpiData.avgEggWeight.toFixed(1)}g)
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3: Pakan & FCR Harian */}
-            <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Pakan & FCR Harian</span>
-                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                  <Scale className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-2xl font-black text-white">
-                    {kpiData.fcr.toFixed(2)}
-                  </span>
-                  <span className="text-xs text-slate-400">FCR</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${kpiData.fcrBadgeColor}`}>
-                    {kpiData.fcrStatus}
-                  </span>
-                  <span className="text-[10px] text-slate-400">
-                    {kpiData.todayFeedKg} kg ({kpiData.feedIntakeGram.toFixed(0)} g/ekor)
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 4: Deplesi & Telur Retak */}
-            <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Deplesi & Telur Retak</span>
-                <div className="w-7 h-7 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
-                  <AlertTriangle className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-2xl font-black text-white">
-                    {(kpiData.totalDeadAccum + kpiData.totalCullAccum).toLocaleString('id-ID')}
-                  </span>
-                  <span className="text-xs text-slate-400">ekor deplesi</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                    Deplesi {kpiData.deplesiRate.toFixed(2)}%
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-medium">
-                    Retak {kpiData.todayBrokenKg.toFixed(1)} kg ({kpiData.brokenRate.toFixed(1)}%)
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ================================================================= */}
-          {/* SECTION: AI HEALTH VISION SCANNER CARD                            */}
-          {/* ================================================================= */}
-          <div className="rounded-2xl bg-gradient-to-br from-[#0c2419] via-[#0F1D17] to-[#0A1410] border-2 border-emerald-500/40 p-4 lg:p-6 shadow-xl space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-emerald-950">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-300 shadow-md">
-                  <ScanEye className="w-6 h-6 animate-pulse" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-black text-white">AI Health Vision Scanner</h2>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-slate-950">
-                      Groq Multimodal
-                    </span>
-                  </div>
-                  <p className="text-xs text-emerald-300/80">
-                    Deteksi klinis visual unggas & feses secara instan (Heat Stress, Coryza, Enteritis, dll.)
-                  </p>
-                </div>
-              </div>
-
-              {/* Action execute scan button */}
-              <button
-                onClick={handleExecuteScan}
-                disabled={isScanning || !scanImageBase64}
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                {isScanning ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Menganalisis Klinis...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    <span>Scan Kesehatan AI</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Presets and Upload Input */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-              {/* Kolom Kiri: Pilihan Sampel Preset & Upload */}
-              <div className="lg:col-span-7 space-y-3">
-                <div>
-                  <span className="text-[11px] font-bold text-slate-300 block mb-1.5 uppercase tracking-wider">
-                    Pilih Sampel Preset Klinis Cepat (Uji Coba Langsung):
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {VISION_SAMPLE_PRESETS.map((preset) => {
-                      const isSelected = selectedPresetId === preset.id;
-                      return (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => handleSelectPreset(preset)}
-                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                            isSelected
-                              ? 'bg-emerald-950/80 border-emerald-500 ring-2 ring-emerald-500/30'
-                              : 'bg-[#091510] hover:bg-[#11241c] border-[#1E352B]'
-                          }`}
-                        >
-                          <div>
-                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border inline-block mb-1 ${preset.badgeColor}`}>
-                              {preset.badge}
-                            </span>
-                            <div className="text-xs font-bold text-white line-clamp-1">
-                              {preset.title}
-                            </div>
-                            <div className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">
-                              {preset.sublabel}
-                            </div>
-                          </div>
-                          <div className="mt-2 flex items-center justify-between text-[9px] text-emerald-400 font-semibold">
-                            <span>Gunakan Preset</span>
-                            {isSelected && <Check className="w-3.5 h-3.5" />}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Upload Foto Mandiri */}
-                <div className="pt-2">
-                  <span className="text-[11px] font-bold text-slate-300 block mb-1.5 uppercase tracking-wider">
-                    Atau Upload Foto Sendiri dari Kandang:
-                  </span>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#0F1D17] hover:bg-[#162A21] border border-[#1E352B] text-slate-200 text-xs font-semibold cursor-pointer"
-                    >
-                      <Upload className="w-4 h-4 text-emerald-400" />
-                      <span>Upload Gambar / File Foto</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (fileInputRef.current) {
-                          fileInputRef.current.setAttribute('capture', 'environment');
-                          fileInputRef.current.click();
-                        }
-                      }}
-                      className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#0F1D17] hover:bg-[#162A21] border border-[#1E352B] text-slate-200 text-xs font-semibold cursor-pointer"
-                    >
-                      <Camera className="w-4 h-4 text-emerald-400" />
-                      <span>Buka Kamera HP Langsung</span>
-                    </button>
-                  </div>
-                </div>
-
-                {scanError && (
-                  <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{scanError}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Kolom Kanan: Preview Citra & Scanning Animation */}
-              <div className="lg:col-span-5 flex flex-col justify-center">
-                <div className="relative w-full h-44 sm:h-48 rounded-xl bg-slate-950 border border-emerald-900/60 overflow-hidden flex items-center justify-center">
-                  {scanImagePreview ? (
-                    <>
-                      <img
-                        src={scanImagePreview}
-                        alt="Preview Scanner"
-                        className="w-full h-full object-contain"
-                      />
-
-                      {/* Scanning Laser Line Effect */}
-                      {isScanning && (
-                        <div className="absolute inset-0 pointer-events-none">
-                          <div className="w-full h-1 bg-gradient-to-r from-emerald-500 via-emerald-300 to-emerald-500 shadow-lg shadow-emerald-400 animate-pulse relative top-1/2 -translate-y-1/2" />
-                          <div className="absolute inset-0 bg-emerald-500/10 animate-pulse" />
-                        </div>
-                      )}
-
-                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-900/80 text-emerald-300 border border-emerald-500/30">
-                        {isScanning ? 'Menganalisis Visual...' : 'Citra Siap Di-scan'}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-center p-4 text-slate-500 space-y-1">
-                      <Camera className="w-8 h-8 mx-auto text-slate-600" />
-                      <p className="text-xs font-medium">Belum ada foto yang dipilih</p>
-                      <p className="text-[10px] text-slate-600">
-                        Pilih salah satu sampel di samping atau upload foto ayam Anda
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Diagnosis Result View */}
-            {scanResult && (
-              <div className="mt-4 p-4 rounded-xl bg-[#07130e] border border-emerald-500/40 space-y-3 animate-in fade-in slide-in-from-top-2">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Stethoscope className="w-5 h-5 text-emerald-400 shrink-0" />
-                    <div>
-                      <span className="text-xs text-slate-400 font-semibold block">
-                        Hasil Analisis Klinis Veteriner AI:
+                    {/* Tombol Terapkan ke Form Recording */}
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-[#1E352B]">
+                      <span className="text-[11px] text-slate-400">
+                        Klik tombol di bawah untuk langsung menyinkronkan status kondisi & rekomendasi ini ke Form Recording.
                       </span>
-                      <h3 className="text-sm sm:text-base font-black text-white">
-                        {scanResult.status_kondisi}
-                      </h3>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
-                        scanResult.tingkat_risiko === 'Kritis'
-                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                          : scanResult.tingkat_risiko === 'Waspada'
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                          : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                      }`}
-                    >
-                      Risiko: {scanResult.tingkat_risiko}
-                    </span>
-                    <span className="text-[10px] text-slate-400">
-                      {scanResult.model_used || 'Groq Vision'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                  <div className="p-3 rounded-lg bg-[#0c1a14] border border-[#1E352B] space-y-1">
-                    <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5">
-                      <Eye className="w-3.5 h-3.5" />
-                      Dugaan Temuan Visual:
-                    </span>
-                    <p className="text-slate-300 leading-relaxed text-[11px]">
-                      {scanResult.dugaan_gejala}
-                    </p>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-[#0c1a14] border border-[#1E352B] space-y-1">
-                    <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
-                      <HeartPulse className="w-3.5 h-3.5" />
-                      Rekomendasi Tindakan Dokter Hewan:
-                    </span>
-                    <p className="text-slate-300 leading-relaxed text-[11px]">
-                      {scanResult.rekomendasi_tindakan}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Tombol Terapkan ke Form Recording */}
-                <div className="flex items-center justify-end pt-1">
-                  <button
-                    type="button"
-                    onClick={handleApplyToForm}
-                    className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs shadow-md shadow-emerald-600/30 transition-all cursor-pointer"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Terapkan Hasil ke Form Recording Harian</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ================================================================= */}
-          {/* SECTION: FORM INPUT RECORDING & GRAFIK (2 KOLOM)                   */}
-          {/* ================================================================= */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* ------------------------------------------------------------- */}
-            {/* KOLOM KIRI (5 Kolom): FORM INPUT RECORDING HARIAN             */}
-            {/* ------------------------------------------------------------- */}
-            <div
-              id="form-recording-harian"
-              className="lg:col-span-5 bg-[#0F1D17] border border-[#1E352B] rounded-2xl p-4 lg:p-5 space-y-4"
-            >
-              <div className="flex items-center justify-between pb-2 border-b border-[#1E352B]">
-                <div className="flex items-center gap-2">
-                  <ClipboardList className="w-5 h-5 text-emerald-400" />
-                  <h2 className="text-sm font-bold text-white">Input Recording Harian</h2>
-                </div>
-                <span className="text-[11px] text-slate-400">
-                  {new Date(recordDate).toLocaleDateString('id-ID', {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                  })}
-                </span>
-              </div>
-
-              <form onSubmit={handleSaveRecording} className="space-y-3.5 text-xs">
-                {/* Tanggal & Pilihan Unit Kandang */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-                      Tanggal Catat:
-                    </label>
-                    <input
-                      type="date"
-                      value={recordDate}
-                      onChange={(e) => setRecordDate(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 font-medium"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1">
-                      <Building2 className="w-3.5 h-3.5 text-emerald-400" />
-                      Unit Kandang:
-                    </label>
-                    <select
-                      value={recordKandangId}
-                      onChange={(e) => setRecordKandangId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
-                      required
-                    >
-                      {userKandangs.map((k) => (
-                        <option key={k.id} value={k.id}>
-                          {k.name} ({k.current_population || k.initial_population} ekor)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Populasi Berjalan Info Pill */}
-                {activeFormKandang && (
-                  <div className="p-2.5 rounded-xl bg-[#09140f] border border-[#1E352B] flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400">Populasi Aktif Kandang:</span>
-                    <span className="font-bold text-emerald-300">
-                      {(activeFormKandang.current_population || activeFormKandang.initial_population).toLocaleString('id-ID')} ekor
-                    </span>
-                  </div>
-                )}
-
-                {/* Mortalitas: Ayam Mati & Afkir */}
-                <div className="p-3 rounded-xl bg-[#09140f] border border-[#1E352B] space-y-2">
-                  <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider block">
-                    Kematian & Afkir (Deplesi Hari Ini):
-                  </span>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Ayam Mati (ekor):</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={recordDead}
-                        onChange={(e) => setRecordDead(Number(e.target.value))}
-                        className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-rose-500 font-bold"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Ayam Afkir (ekor):</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={recordCull}
-                        onChange={(e) => setRecordCull(Number(e.target.value))}
-                        className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-rose-500 font-bold"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Produksi Telur Utuh (Kg & Butir) */}
-                <div className="p-3 rounded-xl bg-[#09140f] border border-[#1E352B] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
-                      Produksi Telur Utuh:
-                    </span>
-                    <span className="text-[10px] font-bold text-emerald-400">
-                      Live HDP: {formPreview.hdp}%
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Berat Total (kg):</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={recordEggKg}
-                        onChange={(e) => handleEggKgChange(Number(e.target.value))}
-                        className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-amber-500 font-bold"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Jumlah Butir (est):</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={recordEggCount}
-                        onChange={(e) => setRecordEggCount(Number(e.target.value))}
-                        className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-amber-500 font-bold"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1 pt-1">
-                    <label className="text-[11px] text-slate-300">Telur Retak / Bentes (kg):</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={recordBrokenKg}
-                      onChange={(e) => setRecordBrokenKg(Number(e.target.value))}
-                      className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-slate-300 focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Konsumsi Pakan & Resep */}
-                <div className="p-3 rounded-xl bg-[#09140f] border border-[#1E352B] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
-                      Konsumsi Pakan Hari Ini:
-                    </span>
-                    <span className="text-[10px] font-bold text-emerald-300">
-                      Est. FCR: {formPreview.fcr} ({formPreview.feedIntake} g/ekor)
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Jumlah Pakan (kg):</label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        value={recordFeedKg}
-                        onChange={(e) => setRecordFeedKg(Number(e.target.value))}
-                        className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-emerald-500 font-bold"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-slate-300">Resep Ransum:</label>
-                      <select
-                        value={recordFeedType}
-                        onChange={(e) => setRecordFeedType(e.target.value)}
-                        className="w-full px-2 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 text-xs truncate"
+                      <button
+                        type="button"
+                        onClick={handleApplyToForm}
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs shadow-md shadow-emerald-600/30 transition-all cursor-pointer"
                       >
-                        <option value="Ransum be-ternak AI #1">Ransum be-ternak AI #1</option>
-                        <option value="Ransum be-ternak AI #2">Ransum be-ternak AI #2</option>
-                        {savedRansums.map((r) => (
-                          <option key={r.id} value={r.title}>
-                            {r.title}
-                          </option>
-                        ))}
-                        <option value="Konsentrat Pabrikan Komplit">Konsentrat Pabrikan Komplit</option>
-                      </select>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Terapkan Hasil ke Form Recording Harian →</span>
+                      </button>
                     </div>
                   </div>
-                </div>
-
-                {/* Kondisi Kandang & Catatan Tambahan (Bisa auto-fill dari AI Health Vision) */}
-                <div className="space-y-2">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
-                      <span>Kondisi Umum / Status Cuaca:</span>
-                      {recordCondition !== 'Normal' && (
-                        <span className="text-[10px] text-amber-400 font-bold">
-                          Status Khusus Terpilih
-                        </span>
-                      )}
-                    </label>
-                    <select
-                      value={recordCondition}
-                      onChange={(e) => setRecordCondition(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
-                    >
-                      <option value="Normal">Normal (Sehat Optimal)</option>
-                      <option value="Vitamin Anti-Stres">Diberikan Vitamin Anti-Stres</option>
-                      <option value="Heat Stress">Heat Stress (Suhu Siang Panas)</option>
-                      <option value="Vaksin ND-IB">Jadwal Vaksinasi ND-IB</option>
-                      <option value="Sakit / Perlu Karantina">Sakit / Perlu Karantina & Pengobatan</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
-                      <span className="flex items-center gap-1">
-                        <FileText className="w-3.5 h-3.5 text-emerald-400" />
-                        Catatan Khusus (Tersinkron AI Vision):
-                      </span>
-                      {recordNotes && (
-                        <button
-                          type="button"
-                          onClick={() => setRecordNotes('')}
-                          className="text-[10px] text-slate-400 hover:text-rose-400"
-                        >
-                          Hapus Catatan
-                        </button>
-                      )}
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={recordNotes}
-                      onChange={(e) => setRecordNotes(e.target.value)}
-                      placeholder="Catatan tambahan penanganan pakan, kebersihan kotoran, atau hasil AI Vision..."
-                      className="w-full px-3 py-2 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 text-xs"
-                    />
-                  </div>
-                </div>
-
-                {/* Submit button */}
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 transition-all cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <CalendarCheck className="w-4 h-4" />
-                  <span>{isSubmitting ? 'Menyimpan Recording...' : 'Simpan Log Recording Harian'}</span>
-                </button>
-              </form>
-            </div>
-
-            {/* ------------------------------------------------------------- */}
-            {/* KOLOM KANAN (7 Kolom): GRAFIK TREN HDP & FCR HARIAN            */}
-            {/* ------------------------------------------------------------- */}
-            <div className="lg:col-span-7 space-y-4">
-              {/* Chart 1: Tren HDP (%) vs Target Standar Breeder */}
-              <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#1E352B]">
-                  <div>
-                    <h3 className="text-xs font-bold text-white flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-emerald-400" />
-                      Tren Hen-Day Production (HDP %) vs Standar Breeder
-                    </h3>
-                    <p className="text-[10px] text-slate-400">
-                      Standar puncak produksi strain Lohmann & ISA Brown (88% - 92%)
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px]">
-                    <span className="flex items-center gap-1 text-emerald-400 font-semibold">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Realisasi HDP
-                    </span>
-                    <span className="flex items-center gap-1 text-slate-400">
-                      <span className="w-2.5 h-0.5 bg-amber-400" /> Target Min (88%)
-                    </span>
-                  </div>
-                </div>
-
-                <div className="h-56 w-full pt-2">
-                  {chartHdpData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartHdpData}>
-                        <defs>
-                          <linearGradient id="colorHdp" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10B981" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1E352B" />
-                        <XAxis dataKey="label" stroke="#64748B" fontSize={10} />
-                        <YAxis domain={[75, 100]} stroke="#64748B" fontSize={10} unit="%" />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: '#0A1410',
-                            borderColor: '#1E352B',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                          }}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="target_min"
-                          stroke="#F59E0B"
-                          strokeDasharray="4 4"
-                          strokeWidth={1.5}
-                          dot={false}
-                          name="Target Min Breeder (88%)"
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="hdp"
-                          stroke="#10B981"
-                          strokeWidth={2.5}
-                          fillOpacity={1}
-                          fill="url(#colorHdp)"
-                          name="HDP Aktual (%)"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                      Belum ada data rekaman untuk ditampilkan pada grafik.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Chart 2: Konsumsi Pakan (kg) & FCR Harian */}
-              <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#1E352B]">
-                  <div>
-                    <h3 className="text-xs font-bold text-white flex items-center gap-2">
-                      <Scale className="w-4 h-4 text-emerald-400" />
-                      Konsumsi Pakan Harian & Efisiensi FCR
-                    </h3>
-                    <p className="text-[10px] text-slate-400">
-                      Rasio konversi pakan terhadap bobot telur (Target FCR &le; 2.15)
-                    </p>
-                  </div>
-                </div>
-
-                <div className="h-52 w-full pt-2">
-                  {chartHdpData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartHdpData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1E352B" />
-                        <XAxis dataKey="label" stroke="#64748B" fontSize={10} />
-                        <YAxis yAxisId="left" stroke="#64748B" fontSize={10} unit=" kg" />
-                        <YAxis yAxisId="right" orientation="right" domain={[1.8, 2.5]} stroke="#F59E0B" fontSize={10} />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: '#0A1410',
-                            borderColor: '#1E352B',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                          }}
-                        />
-                        <Legend wrapperStyle={{ fontSize: '10px' }} />
-                        <Line
-                          yAxisId="left"
-                          type="monotone"
-                          dataKey="feedKg"
-                          stroke="#34D399"
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                          name="Pakan Terpakai (kg)"
-                        />
-                        <Line
-                          yAxisId="right"
-                          type="monotone"
-                          dataKey="fcr"
-                          stroke="#F59E0B"
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                          name="FCR Harian"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                      Belum ada data pakan untuk ditampilkan.
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             </div>
-          </div>
-
-          {/* ================================================================= */}
-          {/* SECTION: TABEL RIWAYAT RECORDING HARIAN                           */}
-          {/* ================================================================= */}
-          <div className="rounded-2xl bg-[#0F1D17] border border-[#1E352B] p-4 lg:p-5 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#1E352B]">
-              <div className="flex items-center gap-2">
-                <CalendarCheck className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-sm font-bold text-white">
-                  Riwayat Log Recording Kandang ({filteredRecordings.length} Entri)
-                </h3>
-              </div>
-
-              {/* Table search filter */}
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Cari tanggal / catatan..."
-                  value={searchTableQuery}
-                  onChange={(e) => setSearchTableQuery(e.target.value)}
-                  className="px-3 py-1.5 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 w-44 sm:w-56"
-                />
-              </div>
-            </div>
-
-            {/* Table wrapper */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-[#1E352B] text-slate-400 font-semibold text-[11px] bg-[#09140f]">
-                    <th className="py-2.5 px-3">Tanggal</th>
-                    <th className="py-2.5 px-3">Kandang</th>
-                    <th className="py-2.5 px-3 text-right">Populasi</th>
-                    <th className="py-2.5 px-3 text-right">Mati / Afkir</th>
-                    <th className="py-2.5 px-3 text-right">Telur Utuh</th>
-                    <th className="py-2.5 px-3 text-right">HDP (%)</th>
-                    <th className="py-2.5 px-3 text-right">Pakan (kg)</th>
-                    <th className="py-2.5 px-3 text-right">FCR</th>
-                    <th className="py-2.5 px-3">Kondisi / Catatan AI</th>
-                    <th className="py-2.5 px-3 text-center">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#1E352B]">
-                  {filteredRecordings.length > 0 ? (
-                    filteredRecordings.map((log) => (
-                      <tr key={log.id} className="hover:bg-[#12241b] transition-colors">
-                        <td className="py-2.5 px-3 font-semibold text-slate-200 whitespace-nowrap">
-                          {log.date}
-                        </td>
-                        <td className="py-2.5 px-3 font-medium text-emerald-300 whitespace-nowrap">
-                          {log.kandang_name}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-medium text-slate-300">
-                          {log.final_population.toLocaleString('id-ID')}
-                        </td>
-                        <td className="py-2.5 px-3 text-right">
-                          {log.dead_count > 0 || log.cull_count > 0 ? (
-                            <span className="text-rose-400 font-bold">
-                              {log.dead_count} / {log.cull_count}
-                            </span>
-                          ) : (
-                            <span className="text-slate-500">0</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-bold text-white whitespace-nowrap">
-                          {log.intact_egg_kg.toFixed(1)} kg ({log.intact_egg_count.toLocaleString('id-ID')} btr)
-                        </td>
-                        <td className="py-2.5 px-3 text-right">
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                              log.hdp_percent >= 88
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                            }`}
-                          >
-                            {log.hdp_percent.toFixed(1)}%
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-semibold text-slate-300">
-                          {log.feed_kg} kg
-                        </td>
-                        <td className="py-2.5 px-3 text-right">
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                              log.fcr <= 2.10
-                                ? 'bg-emerald-500/20 text-emerald-300'
-                                : 'bg-blue-500/20 text-blue-300'
-                            }`}
-                          >
-                            {log.fcr.toFixed(2)}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 max-w-xs">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-semibold text-slate-300 text-[11px] truncate">
-                              {log.condition_note}
-                            </span>
-                            {log.notes && (
-                              <span className="text-[10px] text-slate-400 truncate" title={log.notes}>
-                                {log.notes}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <button
-                            onClick={() => handleDeleteLog(log.id)}
-                            className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
-                            title="Hapus baris log ini"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={10} className="py-8 text-center text-slate-500">
-                        Tidak ada riwayat recording yang cocok dengan filter.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          )}
 
           {/* ================================================================= */}
           {/* MODAL: TAMBAH KANDANG BARU                                        */}
