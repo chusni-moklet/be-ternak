@@ -45,11 +45,8 @@ import {
 type PeternakTab = 'overview' | 'recipes' | 'nearby_feeds' | 'subscription' | 'verification_status';
 
 export default function PeternakDashboardPage() {
-  const [users, setUsers] = useState<UserProfile[]>(() => loadUsersFromStorage());
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    const loaded = loadUsersFromStorage();
-    return loaded.find((u) => u.role === 'peternak') || DEFAULT_FARMER_PROFILE;
-  });
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(DEFAULT_FARMER_PROFILE);
   const [savedRansums, setSavedRansums] = useState<SavedRansum[]>(() => loadSavedRansumsFromStorage());
   const [mounted, setMounted] = useState(false);
 
@@ -279,7 +276,7 @@ export default function PeternakDashboardPage() {
         </button>
 
         <div className="flex items-center gap-2">
-          {currentUser.is_verified ? (
+          {mounted && currentUser?.is_verified ? (
             <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
               ✓ Pro Aktif
             </span>
@@ -292,7 +289,7 @@ export default function PeternakDashboardPage() {
             suppressHydrationWarning
             className="text-xs font-bold text-white truncate max-w-[120px]"
           >
-            {currentUser?.name}
+            {mounted && currentUser ? currentUser.name : DEFAULT_FARMER_PROFILE.name}
           </span>
         </div>
       </div>
@@ -320,15 +317,15 @@ export default function PeternakDashboardPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <h2 suppressHydrationWarning className="text-xs font-bold text-white truncate">
-                    {currentUser?.name}
+                    {mounted && currentUser ? currentUser.name : DEFAULT_FARMER_PROFILE.name}
                   </h2>
                   <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse shrink-0" />
                 </div>
                 <p suppressHydrationWarning className="text-[10px] text-teal-300 font-semibold truncate">
-                  {currentUser?.business_name}
+                  {mounted && currentUser ? currentUser.business_name : DEFAULT_FARMER_PROFILE.business_name}
                 </p>
                 <p suppressHydrationWarning className="text-[9px] text-slate-400 truncate">
-                  {currentUser?.livestock_types?.join(', ') || 'Ayam Unggas'}
+                  {mounted && currentUser?.livestock_types?.join(', ') || 'Ayam Unggas'}
                 </p>
               </div>
             </div>
@@ -499,7 +496,7 @@ export default function PeternakDashboardPage() {
         {/* MAIN CONTENT AREA (RIGHT)                                         */}
         {/* ================================================================= */}
         <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 pb-24 lg:pb-8 space-y-6 w-full">
-          {currentUser && !currentUser.is_verified && activeTab !== 'subscription' ? (
+          {mounted && currentUser && !currentUser.is_verified && activeTab !== 'subscription' ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-xs text-slate-400">
                 <span>Portal Peternak</span>

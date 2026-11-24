@@ -61,11 +61,8 @@ import {
 
 export default function LayerSimulationPage() {
   // 1. Data User & Context
-  const [users, setUsers] = useState<UserProfile[]>(() => loadUsersFromStorage());
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    const loaded = loadUsersFromStorage();
-    return loaded.find((u) => u.role === 'peternak') || DEFAULT_FARMER_PROFILE;
-  });
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(DEFAULT_FARMER_PROFILE);
   const [savedRansums, setSavedRansums] = useState<SavedRansum[]>(() => loadSavedRansumsFromStorage());
   const [scenarios, setScenarios] = useState<LayerSimulationScenario[]>(() =>
     loadSimulationScenariosFromStorage()
@@ -73,6 +70,7 @@ export default function LayerSimulationPage() {
 
   // Mobile menu
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   // Client-side mount flag for charts
   const isMounted = useSyncExternalStore(
@@ -82,6 +80,7 @@ export default function LayerSimulationPage() {
   );
 
   useEffect(() => {
+    setMounted(true);
     const syncUser = () => {
       const loaded = loadUsersFromStorage();
       setUsers(loaded);
@@ -598,7 +597,7 @@ export default function LayerSimulationPage() {
 
   return (
     <div className="h-screen bg-[#060D0A] text-slate-100 flex flex-col font-sans overflow-hidden selection:bg-emerald-500 selection:text-slate-950">
-      <Navbar currentRegionName={`Kandang: ${currentUser.business_name}`} />
+      <Navbar currentRegionName={mounted && currentUser ? `Kandang: ${currentUser.business_name}` : 'Peternakan Layer'} />
 
       {/* Mobile Toggle Header */}
       <div className="lg:hidden flex items-center justify-between px-4 py-3 bg-[#0d1613] border-b border-[#1E352B]">
@@ -618,7 +617,7 @@ export default function LayerSimulationPage() {
             suppressHydrationWarning
             className="text-xs font-bold text-white truncate max-w-[120px]"
           >
-            {currentUser?.name}
+            {mounted && currentUser ? currentUser.name : DEFAULT_FARMER_PROFILE.name}
           </span>
         </div>
       </div>
@@ -646,15 +645,15 @@ export default function LayerSimulationPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <h2 suppressHydrationWarning className="text-xs font-bold text-white truncate">
-                    {currentUser?.name}
+                    {mounted && currentUser ? currentUser.name : DEFAULT_FARMER_PROFILE.name}
                   </h2>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 </div>
                 <p suppressHydrationWarning className="text-[10px] text-emerald-300 font-semibold truncate">
-                  {currentUser?.business_name}
+                  {mounted && currentUser ? currentUser.business_name : DEFAULT_FARMER_PROFILE.business_name}
                 </p>
                 <p suppressHydrationWarning className="text-[9px] text-slate-400 truncate">
-                  {currentUser?.poultry_capacity ? `Populasi: ${currentUser.poultry_capacity.toLocaleString('id-ID')} Ekor Layer` : 'Unit Peternakan Unggas'}
+                  {mounted && currentUser?.poultry_capacity ? `Populasi: ${currentUser.poultry_capacity.toLocaleString('id-ID')} Ekor Layer` : 'Unit Peternakan Unggas'}
                 </p>
               </div>
             </div>
@@ -731,7 +730,7 @@ export default function LayerSimulationPage() {
         {/* MAIN SIMULATOR CONTENT                                            */}
         {/* ================================================================= */}
         <main className="flex-1 h-full overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 space-y-6 w-full">
-          {currentUser && !currentUser.is_verified ? (
+          {mounted && currentUser && !currentUser.is_verified ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-xs text-slate-400">
                 <Link

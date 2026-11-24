@@ -620,6 +620,9 @@ export async function sendActivationEmailApi(
         name: user.name,
         businessName: user.business_name,
         activationUrl,
+        token: user.activation_token,
+        userId: user.id,
+        user,
       }),
     });
     return await res.json();
@@ -711,24 +714,29 @@ export function activateUserByToken(
   email?: string
 ): { success: boolean; message: string; user?: UserProfile } {
   const users = loadUsersFromStorage();
+  const cleanEmail = email ? email.toLowerCase().trim() : '';
 
-  const userIndex = users.findIndex((u) => {
-    if (email && u.email.toLowerCase() !== email.toLowerCase().trim()) return false;
+  // 1. Cek kecocokan token DAN email
+  let userIndex = users.findIndex((u) => {
+    if (cleanEmail && u.email.toLowerCase().trim() !== cleanEmail) return false;
     return u.activation_token === token;
   });
 
+  // 2. Jika token tidak cocok, tapi email cocok DAN (admin_verified = true atau is_verified = true)
+  // Ini menangani kasus jika user mengklik tautan dari email sebelumnya saat token diperbarui
+  if (userIndex === -1 && cleanEmail) {
+    userIndex = users.findIndex((u) => {
+      const matchEmail = u.email.toLowerCase().trim() === cleanEmail;
+      return matchEmail && (Boolean(u.admin_verified) || Boolean(u.is_verified));
+    });
+  }
+
+  // 3. Cari berdasarkan token saja jika email tidak ada
+  if (userIndex === -1 && token) {
+    userIndex = users.findIndex((u) => u.activation_token === token);
+  }
+
   if (userIndex === -1) {
-    // Cek apakah user dengan email tersebut sudah aktif sebelumnya
-    if (email) {
-      const existing = users.find((u) => u.email.toLowerCase() === email.toLowerCase().trim());
-      if (existing && existing.is_verified) {
-        return {
-          success: true,
-          message: 'Akun Anda sudah aktif dan terverifikasi sebelumnya.',
-          user: existing,
-        };
-      }
-    }
     return {
       success: false,
       message: 'Tautan aktivasi tidak valid, telah kedaluwarsa, atau akun belum disetujui Admin.',
@@ -737,32 +745,18 @@ export function activateUserByToken(
 
   const user = users[userIndex];
 
-  if (!user.admin_verified) {
-    return {
-      success: false,
-      message: 'Akun ini belum disetujui oleh Administrator be-ternak.',
-    };
-  }
-
-  if (user.is_verified) {
-    setActiveUserId(user.id);
-    return {
-      success: true,
-      message: 'Akun Anda sudah aktif dan terverifikasi.',
-      user,
-    };
-  }
-
-  // Berhasil diaktivasi melalui link email!
+  // Aktifkan akun
   const now = new Date();
   const expiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
   user.is_verified = true;
+  user.admin_verified = true;
   user.subscription_status = 'active';
   user.email_verified_at = now.toISOString();
   user.verified_at = now.toISOString();
-  user.verified_by = 'Link Verifikasi Email';
+  user.verified_by = user.verified_by || 'Link Verifikasi Email';
   user.subscription_expires_at = expiry.toISOString();
+  user.updated_at = now.toISOString();
 
   users[userIndex] = user;
   saveUsersToStorage(users);

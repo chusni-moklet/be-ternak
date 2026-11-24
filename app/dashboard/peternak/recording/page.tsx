@@ -99,12 +99,8 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [currentUser, setCurrentUser] = useState<UserProfile>(DEFAULT_FARMER_PROFILE);
 
-  // Client mounted flag
-  const isMounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
+  // Client mounted flag for SSR hydration safety
+  const [mounted, setMounted] = useState(false);
 
   // Mobile menu state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -160,6 +156,7 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
 
   // 6. Inisialisasi Data berdasarkan Akun Peternak
   useEffect(() => {
+    setMounted(true);
     try {
       const today = new Date().toISOString().split('T')[0];
       setRecordDate(today);
@@ -813,7 +810,7 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
 
   return (
     <div className="min-h-screen bg-[#070d0b] text-slate-100 flex flex-col font-sans">
-      <Navbar currentRegionName={currentUser.business_name} />
+      <Navbar currentRegionName={mounted ? currentUser.business_name : 'Peternakan Unggas'} />
 
       {/* Mobile Menu Header Toggle */}
       <div className="lg:hidden flex items-center justify-between px-4 py-3 bg-[#0a1410] border-b border-emerald-950/80 shrink-0">
@@ -833,7 +830,7 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
             suppressHydrationWarning
             className="text-xs font-bold text-white truncate max-w-[130px]"
           >
-            {currentUser.name}
+            {mounted ? currentUser.name : DEFAULT_FARMER_PROFILE.name}
           </span>
         </div>
       </div>
@@ -857,15 +854,15 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <h2 suppressHydrationWarning className="text-xs font-bold text-white truncate">
-                    {currentUser.name}
+                    {mounted ? currentUser.name : DEFAULT_FARMER_PROFILE.name}
                   </h2>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 </div>
                 <p suppressHydrationWarning className="text-[10px] text-emerald-300 font-semibold truncate">
-                  {currentUser.business_name}
+                  {mounted ? currentUser.business_name : DEFAULT_FARMER_PROFILE.business_name}
                 </p>
                 <p suppressHydrationWarning className="text-[9px] text-slate-400 truncate">
-                  {currentUser.poultry_capacity ? `Kapasitas: ${currentUser.poultry_capacity.toLocaleString('id-ID')} Ekor` : 'Unit Peternakan Unggas'}
+                  {mounted && currentUser.poultry_capacity ? `Kapasitas: ${currentUser.poultry_capacity.toLocaleString('id-ID')} Ekor` : 'Unit Peternakan Unggas'}
                 </p>
               </div>
             </div>
@@ -957,7 +954,7 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
         {/* MAIN DASHBOARD CONTENT AREA                                       */}
         {/* ================================================================= */}
         <main className="flex-1 overflow-y-auto bg-[#060D0A] p-4 lg:p-6 space-y-6">
-          {currentUser && !currentUser.is_verified ? (
+          {mounted && currentUser && !currentUser.is_verified ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
                 <Link href="/dashboard/peternak" className="hover:text-emerald-400">
@@ -1444,8 +1441,8 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
                         <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
                           Produksi Telur Utuh:
                         </span>
-                        <span className="text-[10px] font-bold text-emerald-400">
-                          Live HDP: {formPreview.hdp}%
+                        <span className={`text-[10px] font-bold ${formPreview.hdp > 100 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                          Live HDP: {formPreview.hdp}% {formPreview.hdp > 100 ? '(⚠️ >100% Cek Butir)' : ''}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
@@ -1492,8 +1489,8 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
                         <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
                           Konsumsi Pakan Hari Ini:
                         </span>
-                        <span className="text-[10px] font-bold text-emerald-300">
-                          Est. FCR: {formPreview.fcr} ({formPreview.feedIntake} g/ekor)
+                        <span className={`text-[10px] font-bold ${formPreview.feedIntake > 150 ? 'text-amber-400' : 'text-emerald-300'}`}>
+                          Est. FCR: {formPreview.fcr} ({formPreview.feedIntake} g/ekor) {formPreview.feedIntake > 150 ? '⚠️ (>150g/ekor)' : ''}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-2">

@@ -231,6 +231,7 @@ export interface UserProfile {
   activation_sent_at?: string | null;
   email_verified_at?: string | null;
   created_at: string;
+  updated_at?: string | null;
 }
 
 export interface RegisterPayload {

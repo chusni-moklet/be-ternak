@@ -70,11 +70,8 @@ const loadProductsForSupplier = (supplierId: string): SupplierFeedItem[] => {
 };
 
 export default function PemasokDashboardPage() {
-  const [users, setUsers] = useState<UserProfile[]>(() => loadUsersFromStorage());
-  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
-    const loaded = loadUsersFromStorage();
-    return loaded.find((u) => u.role === 'pemilik_pakan') || DEFAULT_SUPPLIER_PROFILE;
-  });
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [currentUser, setCurrentUser] = useState<UserProfile>(DEFAULT_SUPPLIER_PROFILE);
 
   // Side Menu State
   const [activeTab, setActiveTab] = useState<PemasokTab>('catalog');
@@ -346,8 +343,11 @@ export default function PemasokDashboardPage() {
               ⏳ Menunggu Verifikasi
             </span>
           )}
-          <span className="text-xs font-bold text-white truncate max-w-[120px]">
-            {currentUser.name}
+          <span
+            suppressHydrationWarning
+            className="text-xs font-bold text-white truncate max-w-[120px]"
+          >
+            {mounted ? currentUser.name : DEFAULT_SUPPLIER_PROFILE.name}
           </span>
         </div>
       </div>
@@ -374,14 +374,16 @@ export default function PemasokDashboardPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <h2 className="text-xs font-bold text-white truncate">{currentUser.name}</h2>
+                  <h2 suppressHydrationWarning className="text-xs font-bold text-white truncate">
+                    {mounted ? currentUser.name : DEFAULT_SUPPLIER_PROFILE.name}
+                  </h2>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 </div>
-                <p className="text-[10px] text-emerald-400 font-semibold truncate">
-                  {currentUser.business_name}
+                <p suppressHydrationWarning className="text-[10px] text-emerald-400 font-semibold truncate">
+                  {mounted ? currentUser.business_name : DEFAULT_SUPPLIER_PROFILE.business_name}
                 </p>
-                <p className="text-[9px] text-slate-400 truncate">
-                  {currentUser.supply_capacity_ton_month ? `Kapasitas Suplai: ${currentUser.supply_capacity_ton_month} Ton/bln` : 'Sentra Pakan Alternatif'}
+                <p suppressHydrationWarning className="text-[9px] text-slate-400 truncate">
+                  {mounted && currentUser.supply_capacity_ton_month ? `Kapasitas Suplai: ${currentUser.supply_capacity_ton_month} Ton/bln` : 'Sentra Pakan Alternatif'}
                 </p>
               </div>
             </div>
@@ -509,7 +511,7 @@ export default function PemasokDashboardPage() {
         {/* MAIN CONTENT AREA (RIGHT)                                         */}
         {/* ================================================================= */}
         <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 pb-24 lg:pb-8 space-y-6 w-full">
-          {currentUser && !currentUser.is_verified && activeTab !== 'subscription' ? (
+          {mounted && currentUser && !currentUser.is_verified && activeTab !== 'subscription' ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-xs text-slate-400">
                 <span>Portal Pemilik Pakan</span>

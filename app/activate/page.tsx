@@ -7,6 +7,8 @@ import Navbar from '@/components/ui/Navbar';
 import {
   activateUserByToken,
   loadUsersFromStorage,
+  saveUsersToStorage,
+  setActiveUserId,
   getActivationUrl,
 } from '@/lib/subscription-store';
 import { UserProfile } from '@/lib/types';
@@ -41,45 +43,119 @@ function ActivationContent() {
   const [manualEmail, setManualEmail] = useState(emailParam);
   const [manualToken, setManualToken] = useState(tokenParam);
 
+  const performActivation = async (forceWithEmailOnly: boolean = false) => {
+    setStatus('loading');
+    const tokenToUse = forceWithEmailOnly ? '' : tokenParam;
+    const emailToUse = emailParam || manualEmail;
+
+    try {
+      // 1. Coba aktivasi via Server-Side API terlebih dahulu (berfungsi di semua browser/device)
+      const res = await fetch('/api/auth/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: tokenToUse, email: emailToUse }),
+      });
+      const serverData = await res.json();
+
+      if (serverData.success && serverData.user) {
+        // Sinkronkan ke client localStorage
+        const users = loadUsersFromStorage();
+        const idx = users.findIndex(
+          (u) => u.id === serverData.user.id || u.email.toLowerCase() === serverData.user.email.toLowerCase()
+        );
+        if (idx >= 0) {
+          users[idx] = serverData.user;
+        } else {
+          users.unshift(serverData.user);
+        }
+        saveUsersToStorage(users);
+        setActiveUserId(serverData.user.id);
+
+        setStatus('success');
+        setMessage(serverData.message);
+        setActivatedUser(serverData.user);
+        return;
+      }
+
+      // 2. Fallback aktivasi via Local Storage client
+      const localResult = activateUserByToken(tokenToUse, emailToUse || undefined);
+      if (localResult.success && localResult.user) {
+        setStatus('success');
+        setMessage(localResult.message);
+        setActivatedUser(localResult.user);
+        return;
+      }
+
+      // 3. Jika gagal
+      setStatus('error');
+      setMessage(serverData.error || serverData.message || localResult.message || 'Tautan aktivasi tidak valid.');
+    } catch (err: unknown) {
+      // Fallback local jika offline/error
+      try {
+        const localResult = activateUserByToken(tokenToUse, emailToUse || undefined);
+        if (localResult.success && localResult.user) {
+          setStatus('success');
+          setMessage(localResult.message);
+          setActivatedUser(localResult.user);
+          return;
+        }
+      } catch {}
+      setStatus('error');
+      setMessage(err instanceof Error ? err.message : 'Terjadi kesalahan sistem saat aktivasi.');
+    }
+  };
+
   useEffect(() => {
-    if (!tokenParam) {
+    if (!tokenParam && !emailParam) {
       setStatus('idle');
       return;
     }
 
-    try {
-      const result = activateUserByToken(tokenParam, emailParam || undefined);
-      if (result.success && result.user) {
-        setStatus('success');
-        setMessage(result.message);
-        setActivatedUser(result.user);
-      } else {
-        setStatus('error');
-        setMessage(result.message || 'Tautan aktivasi tidak valid.');
-      }
-    } catch (err: unknown) {
-      setStatus('error');
-      setMessage(err instanceof Error ? err.message : 'Terjadi kesalahan sistem saat aktivasi.');
-    }
+    performActivation();
   }, [tokenParam, emailParam]);
 
-  const handleManualActivate = (e: React.FormEvent) => {
+  const handleManualActivate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualToken.trim()) {
-      setMessage('Silakan masukkan kode/token aktivasi dari email Anda.');
+    if (!manualToken.trim() && !manualEmail.trim()) {
+      setMessage('Silakan masukkan email pendaftar atau kode/token aktivasi Anda.');
       setStatus('error');
       return;
     }
 
+    setStatus('loading');
     try {
-      const result = activateUserByToken(manualToken.trim(), manualEmail.trim() || undefined);
-      if (result.success && result.user) {
+      // Coba server API
+      const res = await fetch('/api/auth/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: manualToken.trim(), email: manualEmail.trim() }),
+      });
+      const data = await res.json();
+      if (data.success && data.user) {
+        const users = loadUsersFromStorage();
+        const idx = users.findIndex(
+          (u) => u.id === data.user.id || u.email.toLowerCase() === data.user.email.toLowerCase()
+        );
+        if (idx >= 0) users[idx] = data.user;
+        else users.unshift(data.user);
+        saveUsersToStorage(users);
+        setActiveUserId(data.user.id);
+
         setStatus('success');
-        setMessage(result.message);
-        setActivatedUser(result.user);
+        setMessage(data.message);
+        setActivatedUser(data.user);
+        return;
+      }
+
+      // Fallback local
+      const localRes = activateUserByToken(manualToken.trim(), manualEmail.trim() || undefined);
+      if (localRes.success && localRes.user) {
+        setStatus('success');
+        setMessage(localRes.message);
+        setActivatedUser(localRes.user);
       } else {
         setStatus('error');
-        setMessage(result.message || 'Tautan aktivasi tidak valid.');
+        setMessage(data.message || localRes.message || 'Tautan aktivasi tidak valid.');
       }
     } catch (err: unknown) {
       setStatus('error');
@@ -219,11 +295,33 @@ function ActivationContent() {
               <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2 text-xs text-slate-400">
                 <p className="font-semibold text-slate-300">Kemungkinan Penyebab:</p>
                 <ul className="list-disc list-inside space-y-1 pl-1 text-[11px]">
-                  <li>Akun Anda masih dalam antrean verifikasi oleh Administrator.</li>
-                  <li>Tautan aktivasi telah digunakan sebelumnya atau token tidak sesuai.</li>
-                  <li>Tautan terpotong saat disalin dari email.</li>
+                  <li>Akun Anda masih dalam antrean verifikasi oleh Administrator be-ternak.</li>
+                  <li>Tautan aktivasi telah digunakan sebelumnya atau token telah diperbarui saat kirim ulang.</li>
+                  <li>Tautan dibuka di browser berbeda dengan browser saat mendaftar.</li>
                 </ul>
               </div>
+
+              {emailParam && (
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/50 to-teal-950/40 border border-emerald-500/40 space-y-3 text-left">
+                  <div className="flex items-start gap-2.5">
+                    <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <div className="text-xs">
+                      <strong className="text-white block">Aktivasi Otomatis via Email Pendaftar</strong>
+                      <p className="text-slate-300 mt-0.5">
+                        Tautan email terdeteksi untuk: <span className="font-mono text-emerald-300 font-bold">{emailParam}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => performActivation(true)}
+                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer transition-all"
+                  >
+                    <span>Konfirmasi &amp; Aktifkan Akun Sekarang</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Link

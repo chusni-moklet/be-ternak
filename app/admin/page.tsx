@@ -53,11 +53,9 @@ import {
 type AdminTab = 'overview' | 'verification' | 'users' | 'feeds' | 'reports' | 'payments';
 
 export default function AdminDashboardPage() {
-  const [transactions, setTransactions] = useState<SubscriptionTransaction[]>(() =>
-    loadTransactionsFromStorage()
-  );
-  const [users, setUsers] = useState<UserProfile[]>(() => loadUsersFromStorage());
-  const [feedSources, setFeedSources] = useState<FeedSource[]>(() => loadFeedSourcesFromStorage());
+  const [transactions, setTransactions] = useState<SubscriptionTransaction[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [feedSources, setFeedSources] = useState<FeedSource[]>([]);
 
   // Side Menu Active Section
   const [activeTab, setActiveTab] = useState<AdminTab>('verification');
@@ -69,6 +67,9 @@ export default function AdminDashboardPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
+    setTransactions([...loadTransactionsFromStorage()]);
+    setUsers([...loadUsersFromStorage()]);
+    setFeedSources([...loadFeedSourcesFromStorage()]);
   }, []);
 
   // Mobile Side Menu Open/Close

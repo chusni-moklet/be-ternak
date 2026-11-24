@@ -1,16 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
+import { upsertUserOnServer } from '@/lib/server-user-store';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { to, name, businessName, activationUrl } = body;
+    const { to, name, businessName, activationUrl, user } = body;
 
     if (!to || !activationUrl) {
       return NextResponse.json(
         { success: false, error: 'Email tujuan dan tautan aktivasi wajib diisi.' },
         { status: 400 }
       );
+    }
+
+    // Ekstrak token aktivasi dari URL
+    let token = body.token || '';
+    try {
+      const urlObj = new URL(activationUrl, 'http://localhost:3000');
+      token = token || urlObj.searchParams.get('token') || '';
+    } catch {}
+
+    // Simpan data pendaftar & token ke server-side store agar bisa diaktivasi dari browser/perangkat apa pun
+    if (user) {
+      await upsertUserOnServer({
+        ...user,
+        email: to,
+        admin_verified: true,
+        activation_token: token || user.activation_token,
+      });
+    } else {
+      await upsertUserOnServer({
+        id: body.userId || `usr-${Date.now()}`,
+        name: name || 'Pengguna be-ternak',
+        email: to,
+        business_name: businessName || name,
+        role: body.role || 'peternak',
+        admin_verified: true,
+        is_verified: false,
+        activation_token: token,
+      } as any);
     }
 
     const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
