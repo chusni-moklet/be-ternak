@@ -282,49 +282,25 @@ function LoginRegisterContent() {
                 <ArrowRight className="w-4 h-4" />
               </button>
 
-              {/* Quick Demo Credentials Autofill */}
+              {/* Quick Admin Credentials Autofill */}
               <div className="pt-3 border-t border-slate-800 space-y-2">
                 <span className="text-[11px] font-semibold text-slate-400 block text-center">
-                  Coba Akun Demo Cepat (1-Klik):
+                  Akses Cepat Administrator be-ternak:
                 </span>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="flex justify-center">
                   <button
                     type="button"
                     onClick={() => handleQuickLogin('chusniarin12@gmail.com', 'skylandO2')}
-                    className="p-2 rounded-xl bg-slate-900/90 border border-emerald-500/30 hover:border-emerald-400 text-left transition-all group"
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-900/90 border border-emerald-500/30 hover:border-emerald-400 text-left transition-all group flex items-center justify-between gap-4"
                   >
-                    <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-[11px]">
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                      <span>Admin</span>
+                    <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+                      <ShieldCheck className="w-4 h-4 shrink-0" />
+                      <span>Masuk sebagai Admin</span>
                     </div>
-                    <p className="text-[10px] text-slate-300 truncate font-mono">chusniarin12@gmail.com</p>
-                    <p className="text-[9px] text-slate-500">Pass: skylandO2</p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin('suburfarm.blitar@gmail.com', 'peternak123')}
-                    className="p-2 rounded-xl bg-slate-900/90 border border-teal-500/30 hover:border-teal-400 text-left transition-all group"
-                  >
-                    <div className="flex items-center gap-1.5 text-teal-400 font-bold text-[11px]">
-                      <Users className="w-3.5 h-3.5" />
-                      <span>Peternak</span>
+                    <div className="text-right">
+                      <p className="text-[10px] text-slate-300 font-mono">chusniarin12@gmail.com</p>
+                      <p className="text-[9px] text-slate-500">Pass: skylandO2</p>
                     </div>
-                    <p className="text-[10px] text-slate-300 truncate font-mono">suburfarm.blitar</p>
-                    <p className="text-[9px] text-slate-500">Pass: peternak123</p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin('barokah.dedak@gmail.com', 'pemasok123')}
-                    className="p-2 rounded-xl bg-slate-900/90 border border-emerald-500/30 hover:border-emerald-400 text-left transition-all group"
-                  >
-                    <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-[11px]">
-                      <Store className="w-3.5 h-3.5" />
-                      <span>Pemilik Pakan</span>
-                    </div>
-                    <p className="text-[10px] text-slate-300 truncate font-mono">barokah.dedak</p>
-                    <p className="text-[9px] text-slate-500">Pass: pemasok123</p>
                   </button>
                 </div>
               </div>

@@ -15,6 +15,7 @@ import {
   submitSubscriptionPayment,
   loadFeedSourcesFromStorage,
   addFeedSourceToStorage,
+  DEFAULT_SUPPLIER_PROFILE,
 } from '@/lib/subscription-store';
 import {
   CheckCircle2,
@@ -51,9 +52,7 @@ interface SupplierFeedItem {
 
 const loadProductsForSupplier = (supplierId: string): SupplierFeedItem[] => {
   const allFeeds = loadFeedSourcesFromStorage();
-  const filtered = allFeeds.filter(
-    (f) => f.supplier_id === supplierId || (!f.supplier_id && supplierId === 'usr-supplier-01')
-  );
+  const filtered = allFeeds.filter((f) => f.supplier_id === supplierId);
   return filtered.map((f) => ({
     id: f.id,
     name: f.name,
@@ -70,9 +69,9 @@ const loadProductsForSupplier = (supplierId: string): SupplierFeedItem[] => {
 
 export default function PemasokDashboardPage() {
   const [users, setUsers] = useState<UserProfile[]>(() => loadUsersFromStorage());
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     const loaded = loadUsersFromStorage();
-    return loaded.find((u) => u.role === 'pemilik_pakan') || loaded[3] || null;
+    return loaded.find((u) => u.role === 'pemilik_pakan') || DEFAULT_SUPPLIER_PROFILE;
   });
 
   // Side Menu State
@@ -110,11 +109,11 @@ export default function PemasokDashboardPage() {
   const refreshUserData = () => {
     const loadedUsers = loadUsersFromStorage();
     setUsers(loadedUsers);
-    const activeId = currentUser?.id || 'usr-supplier-01';
+    const activeId = currentUser?.id || DEFAULT_SUPPLIER_PROFILE.id;
     const supplier =
       loadedUsers.find((u) => u.id === activeId) ||
       loadedUsers.find((u) => u.role === 'pemilik_pakan') ||
-      loadedUsers[3];
+      DEFAULT_SUPPLIER_PROFILE;
     setCurrentUser(supplier);
   };
 
@@ -341,7 +340,7 @@ export default function PemasokDashboardPage() {
           `}
         >
           {/* Top Section: Supplier Profile Card */}
-          <div className="p-4 border-b border-emerald-950/70 space-y-3">
+          <div className="p-4 border-b border-emerald-950/70">
             <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-950/60 to-slate-900/60 border border-emerald-500/30 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shadow-md text-xl">
                 🌾
@@ -355,32 +354,8 @@ export default function PemasokDashboardPage() {
                   {currentUser.business_name}
                 </p>
                 <p className="text-[9px] text-slate-400 truncate">
-                  Suplai: {currentUser.supply_capacity_ton_month || 30} Ton/bln
+                  {currentUser.supply_capacity_ton_month ? `Kapasitas Suplai: ${currentUser.supply_capacity_ton_month} Ton/bln` : 'Sentra Pakan Alternatif'}
                 </p>
-              </div>
-            </div>
-
-            {/* Switch Akun Demo Pemasok */}
-            <div className="bg-slate-900/80 p-1.5 rounded-xl border border-slate-800 space-y-1">
-              <span className="text-[10px] font-semibold text-slate-400 block px-1.5">
-                Ganti Akun Demo Pemasok:
-              </span>
-              <div className="grid grid-cols-2 gap-1 text-[11px]">
-                {users
-                  .filter((u) => u.role === 'pemilik_pakan')
-                  .map((u) => (
-                    <button
-                      key={u.id}
-                      onClick={() => handleSelectSupplier(u.id)}
-                      className={`px-2 py-1 rounded-lg truncate text-left font-medium transition-all ${
-                        currentUser.id === u.id
-                          ? 'bg-emerald-600 text-white font-bold'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                      }`}
-                    >
-                      {u.business_name.split(' ')[1] || u.name} ({u.is_verified ? 'Aktif' : 'Pending'})
-                    </button>
-                  ))}
               </div>
             </div>
           </div>

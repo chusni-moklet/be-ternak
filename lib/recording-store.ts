@@ -6,171 +6,15 @@ import {
   KandangHouseType,
 } from './types';
 
-export const STORAGE_KEY_KANDANG = 'be_ternak_kandang_units';
-export const STORAGE_KEY_RECORDINGS = 'be_ternak_daily_recordings';
+export const STORAGE_KEY_KANDANG = 'be_ternak_kandang_units_v2';
+export const STORAGE_KEY_RECORDINGS = 'be_ternak_daily_recordings_v2';
 
 // ============================================================================
-// Initial Mock Kandang Units
+// Inisialisasi Bersih Tanpa Data Dummy (Siap untuk Input Data Real)
 // ============================================================================
 
-export const INITIAL_KANDANG_UNITS: KandangUnit[] = [
-  {
-    id: 'kandang-subur-01',
-    user_id: 'usr-farmer-01',
-    name: 'Kandang A',
-    house_type: 'Open House',
-    strain: 'ISA Brown',
-    initial_population: 2500,
-    current_population: 2490,
-    chick_in_date: '2026-02-10',
-    age_weeks: 41,
-    created_at: '2026-02-10T08:00:00Z',
-  },
-  {
-    id: 'kandang-subur-02',
-    user_id: 'usr-farmer-01',
-    name: 'Kandang B',
-    house_type: 'Semi-Closed',
-    strain: 'Lohmann Brown',
-    initial_population: 2500,
-    current_population: 2488,
-    chick_in_date: '2026-03-01',
-    age_weeks: 38,
-    created_at: '2026-03-01T08:00:00Z',
-  },
-  {
-    id: 'kandang-ahmad-01',
-    user_id: 'usr-farmer-02',
-    name: 'Kandang Utama Ahmad',
-    house_type: 'Open House',
-    strain: 'ISA Brown',
-    initial_population: 2500,
-    current_population: 2485,
-    chick_in_date: '2026-04-15',
-    age_weeks: 32,
-    created_at: '2026-04-15T08:00:00Z',
-  },
-];
-
-// ============================================================================
-// Initial Mock 10-Day Daily Recording Logs
-// ============================================================================
-
-const RAW_LOGS_KANDANG_A: Array<{
-  date: string;
-  dead: number;
-  cull: number;
-  eggKg: number;
-  eggCount: number;
-  brokenKg: number;
-  feedKg: number;
-  feedType: string;
-  note: string;
-}> = [
-  { date: '2026-11-15', dead: 1, cull: 0, eggKg: 137.5, eggCount: 2200, brokenKg: 1.2, feedKg: 275, feedType: 'Ransum be-ternak AI #1', note: 'Normal' },
-  { date: '2026-11-16', dead: 0, cull: 1, eggKg: 138.8, eggCount: 2220, brokenKg: 1.0, feedKg: 275, feedType: 'Ransum be-ternak AI #1', note: 'Normal' },
-  { date: '2026-11-17', dead: 2, cull: 0, eggKg: 136.2, eggCount: 2180, brokenKg: 1.5, feedKg: 274, feedType: 'Ransum be-ternak AI #1', note: 'Vitamin Anti-Stres' },
-  { date: '2026-11-18', dead: 1, cull: 0, eggKg: 139.4, eggCount: 2230, brokenKg: 0.9, feedKg: 275, feedType: 'Ransum be-ternak AI #1', note: 'Normal' },
-  { date: '2026-11-19', dead: 0, cull: 0, eggKg: 140.0, eggCount: 2240, brokenKg: 1.1, feedKg: 276, feedType: 'Ransum be-ternak AI #1', note: 'Normal' },
-  { date: '2026-11-20', dead: 1, cull: 1, eggKg: 137.0, eggCount: 2190, brokenKg: 1.4, feedKg: 274, feedType: 'Ransum be-ternak AI #1', note: 'Heat Stress' },
-  { date: '2026-11-21', dead: 0, cull: 0, eggKg: 139.5, eggCount: 2232, brokenKg: 1.0, feedKg: 275, feedType: 'Ransum be-ternak AI #1', note: 'Normal' },
-  { date: '2026-11-22', dead: 1, cull: 0, eggKg: 141.0, eggCount: 2256, brokenKg: 0.8, feedKg: 276, feedType: 'Ransum be-ternak AI #1', note: 'Normal' },
-  { date: '2026-11-23', dead: 0, cull: 1, eggKg: 140.2, eggCount: 2244, brokenKg: 1.1, feedKg: 275, feedType: 'Ransum be-ternak AI #1', note: 'Normal' },
-  { date: '2026-11-24', dead: 1, cull: 0, eggKg: 141.2, eggCount: 2260, brokenKg: 0.9, feedKg: 276, feedType: 'Ransum be-ternak AI #1', note: 'Normal' },
-];
-
-const RAW_LOGS_KANDANG_B: Array<{
-  date: string;
-  dead: number;
-  cull: number;
-  eggKg: number;
-  eggCount: number;
-  brokenKg: number;
-  feedKg: number;
-  feedType: string;
-  note: string;
-}> = [
-  { date: '2026-11-15', dead: 1, cull: 0, eggKg: 139.0, eggCount: 2224, brokenKg: 1.0, feedKg: 274, feedType: 'Ransum be-ternak AI #2', note: 'Normal' },
-  { date: '2026-11-16', dead: 0, cull: 0, eggKg: 140.5, eggCount: 2248, brokenKg: 0.9, feedKg: 275, feedType: 'Ransum be-ternak AI #2', note: 'Normal' },
-  { date: '2026-11-17', dead: 2, cull: 1, eggKg: 138.0, eggCount: 2208, brokenKg: 1.2, feedKg: 273, feedType: 'Ransum be-ternak AI #2', note: 'Vitamin Anti-Stres' },
-  { date: '2026-11-18', dead: 1, cull: 0, eggKg: 141.2, eggCount: 2260, brokenKg: 0.8, feedKg: 275, feedType: 'Ransum be-ternak AI #2', note: 'Normal' },
-  { date: '2026-11-19', dead: 0, cull: 1, eggKg: 141.8, eggCount: 2268, brokenKg: 1.0, feedKg: 275, feedType: 'Ransum be-ternak AI #2', note: 'Normal' },
-  { date: '2026-11-20', dead: 1, cull: 0, eggKg: 139.8, eggCount: 2236, brokenKg: 1.3, feedKg: 274, feedType: 'Ransum be-ternak AI #2', note: 'Heat Stress' },
-  { date: '2026-11-21', dead: 0, cull: 0, eggKg: 142.0, eggCount: 2272, brokenKg: 0.9, feedKg: 275, feedType: 'Ransum be-ternak AI #2', note: 'Normal' },
-  { date: '2026-11-22', dead: 2, cull: 0, eggKg: 142.5, eggCount: 2280, brokenKg: 0.7, feedKg: 276, feedType: 'Ransum be-ternak AI #2', note: 'Normal' },
-  { date: '2026-11-23', dead: 1, cull: 0, eggKg: 143.0, eggCount: 2288, brokenKg: 0.8, feedKg: 276, feedType: 'Ransum be-ternak AI #2', note: 'Normal' },
-  { date: '2026-11-24', dead: 1, cull: 1, eggKg: 142.8, eggCount: 2284, brokenKg: 0.8, feedKg: 275, feedType: 'Ransum be-ternak AI #2', note: 'Normal' },
-];
-
-const RAW_LOGS_KANDANG_AHMAD: Array<{
-  date: string;
-  dead: number;
-  cull: number;
-  eggKg: number;
-  eggCount: number;
-  brokenKg: number;
-  feedKg: number;
-  feedType: string;
-  note: string;
-}> = [
-  { date: '2026-11-15', dead: 2, cull: 0, eggKg: 132.5, eggCount: 2120, brokenKg: 1.5, feedKg: 275, feedType: 'Pakan Pabrikan Komplit', note: 'Normal' },
-  { date: '2026-11-16', dead: 1, cull: 1, eggKg: 133.0, eggCount: 2128, brokenKg: 1.4, feedKg: 275, feedType: 'Pakan Pabrikan Komplit', note: 'Normal' },
-  { date: '2026-11-17', dead: 2, cull: 0, eggKg: 131.8, eggCount: 2108, brokenKg: 1.6, feedKg: 274, feedType: 'Pakan Pabrikan Komplit', note: 'Vitamin Anti-Stres' },
-  { date: '2026-11-18', dead: 1, cull: 0, eggKg: 134.0, eggCount: 2144, brokenKg: 1.2, feedKg: 275, feedType: 'Pakan Pabrikan Komplit', note: 'Normal' },
-  { date: '2026-11-19', dead: 0, cull: 1, eggKg: 134.5, eggCount: 2152, brokenKg: 1.3, feedKg: 275, feedType: 'Pakan Pabrikan Komplit', note: 'Normal' },
-  { date: '2026-11-20', dead: 2, cull: 1, eggKg: 132.0, eggCount: 2112, brokenKg: 1.8, feedKg: 273, feedType: 'Pakan Pabrikan Komplit', note: 'Heat Stress' },
-  { date: '2026-11-21', dead: 1, cull: 0, eggKg: 135.0, eggCount: 2160, brokenKg: 1.1, feedKg: 274, feedType: 'Pakan Pabrikan Komplit', note: 'Normal' },
-  { date: '2026-11-22', dead: 1, cull: 0, eggKg: 135.5, eggCount: 2168, brokenKg: 1.0, feedKg: 275, feedType: 'Pakan Pabrikan Komplit', note: 'Normal' },
-  { date: '2026-11-23', dead: 1, cull: 0, eggKg: 136.0, eggCount: 2176, brokenKg: 1.1, feedKg: 275, feedType: 'Pakan Pabrikan Komplit', note: 'Normal' },
-  { date: '2026-11-24', dead: 1, cull: 0, eggKg: 136.5, eggCount: 2184, brokenKg: 1.0, feedKg: 276, feedType: 'Pakan Pabrikan Komplit', note: 'Normal' },
-];
-
-function generateInitialLogs(
-  userId: string,
-  kandangId: string,
-  kandangName: string,
-  initialPop: number,
-  raw: typeof RAW_LOGS_KANDANG_A
-): DailyRecordingLog[] {
-  let runningPop = initialPop;
-  return raw.map((item, idx) => {
-    runningPop = runningPop - (item.dead + item.cull);
-    const totalEggKg = item.eggKg + item.brokenKg;
-    const fcr = totalEggKg > 0 ? Number((item.feedKg / totalEggKg).toFixed(2)) : 0;
-    const hdp = runningPop > 0 ? Number(((item.eggCount / runningPop) * 100).toFixed(1)) : 0;
-    const feedIntake = runningPop > 0 ? Number(((item.feedKg * 1000) / runningPop).toFixed(1)) : 0;
-    const avgWeight = item.eggCount > 0 ? Number(((item.eggKg * 1000) / item.eggCount).toFixed(1)) : 62.5;
-
-    return {
-      id: `rec-${kandangId}-${idx + 1}`,
-      user_id: userId,
-      kandang_id: kandangId,
-      kandang_name: kandangName,
-      date: item.date,
-      dead_count: item.dead,
-      cull_count: item.cull,
-      final_population: runningPop,
-      intact_egg_kg: item.eggKg,
-      intact_egg_count: item.eggCount,
-      avg_egg_weight_gram: avgWeight,
-      broken_egg_kg: item.brokenKg,
-      hdp_percent: hdp,
-      feed_kg: item.feedKg,
-      feed_type: item.feedType,
-      feed_intake_gram: feedIntake,
-      fcr: fcr,
-      condition_note: item.note,
-      notes: idx === 2 ? 'Pemberian vitamin anti-stres karena cuaca terik.' : undefined,
-      created_at: `${item.date}T17:00:00Z`,
-    };
-  });
-}
-
-export const INITIAL_RECORDING_LOGS: DailyRecordingLog[] = [
-  ...generateInitialLogs('usr-farmer-01', 'kandang-subur-01', 'Kandang A', 2500, RAW_LOGS_KANDANG_A),
-  ...generateInitialLogs('usr-farmer-01', 'kandang-subur-02', 'Kandang B', 2500, RAW_LOGS_KANDANG_B),
-  ...generateInitialLogs('usr-farmer-02', 'kandang-ahmad-01', 'Kandang Utama Ahmad', 2500, RAW_LOGS_KANDANG_AHMAD),
-];
+export const INITIAL_KANDANG_UNITS: KandangUnit[] = [];
+export const INITIAL_RECORDING_LOGS: DailyRecordingLog[] = [];
 
 // ============================================================================
 // Storage Functions for Kandang Units
@@ -178,19 +22,27 @@ export const INITIAL_RECORDING_LOGS: DailyRecordingLog[] = [
 
 export function loadKandangUnits(userId?: string): KandangUnit[] {
   if (typeof window === 'undefined') {
-    return userId ? INITIAL_KANDANG_UNITS.filter((k) => k.user_id === userId) : INITIAL_KANDANG_UNITS;
+    return [];
   }
   try {
+    // Bersihkan key lama jika ada
+    if (localStorage.getItem('be_ternak_kandang_units')) {
+      localStorage.removeItem('be_ternak_kandang_units');
+    }
     const raw = localStorage.getItem(STORAGE_KEY_KANDANG);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY_KANDANG, JSON.stringify(INITIAL_KANDANG_UNITS));
-      return userId ? INITIAL_KANDANG_UNITS.filter((k) => k.user_id === userId) : INITIAL_KANDANG_UNITS;
+      localStorage.setItem(STORAGE_KEY_KANDANG, JSON.stringify([]));
+      return [];
     }
-    const list: KandangUnit[] = JSON.parse(raw);
+    let list: KandangUnit[] = JSON.parse(raw);
+    // Bersihkan dummy lawas jika tersimpan di browser
+    list = list.filter(
+      (k) => !['kandang-subur-01', 'kandang-subur-02', 'kandang-ahmad-01'].includes(k.id)
+    );
     return userId ? list.filter((k) => k.user_id === userId) : list;
   } catch (e) {
     console.error('Failed to load kandang units from localStorage', e);
-    return userId ? INITIAL_KANDANG_UNITS.filter((k) => k.user_id === userId) : INITIAL_KANDANG_UNITS;
+    return [];
   }
 }
 
@@ -211,8 +63,8 @@ export function createKandangUnit(userId: string, payload: CreateKandangPayload)
     name: payload.name.trim(),
     house_type: payload.house_type,
     strain: payload.strain.trim() || 'ISA Brown',
-    initial_population: Number(payload.initial_population) || 2000,
-    current_population: Number(payload.initial_population) || 2000,
+    initial_population: Number(payload.initial_population) || 1000,
+    current_population: Number(payload.initial_population) || 1000,
     chick_in_date: payload.chick_in_date || new Date().toISOString().split('T')[0],
     age_weeks: Number(payload.age_weeks) || 20,
     created_at: new Date().toISOString(),
@@ -223,33 +75,24 @@ export function createKandangUnit(userId: string, payload: CreateKandangPayload)
   return newUnit;
 }
 
-export function deleteKandangUnit(kandangId: string): { success: boolean; deletedLogsCount: number; message?: string } {
+export function deleteKandangUnit(kandangId: string): { success: boolean; message?: string; deletedLogsCount: number } {
   const allUnits = loadKandangUnits();
   const target = allUnits.find((k) => k.id === kandangId);
   if (!target) {
-    return { success: false, deletedLogsCount: 0, message: 'Kandang tidak ditemukan.' };
+    return { success: false, message: 'Unit kandang tidak ditemukan.', deletedLogsCount: 0 };
   }
 
-  // Proteksi: jangan biarkan user menghapus kandang jika hanya tersisa 1 unit milik user tersebut
-  const userKandangs = allUnits.filter((k) => k.user_id === target.user_id);
-  if (userKandangs.length <= 1) {
-    return {
-      success: false,
-      deletedLogsCount: 0,
-      message: 'Gagal menghapus: Minimal harus memiliki 1 unit kandang aktif.',
-    };
-  }
+  // Hapus kandang
+  const remainingUnits = allUnits.filter((k) => k.id !== kandangId);
+  saveKandangUnitsToStorage(remainingUnits);
 
-  const updatedUnits = allUnits.filter((k) => k.id !== kandangId);
-  saveKandangUnitsToStorage(updatedUnits);
-
-  // Hapus semua log yang berelasi dengan kandang ini
+  // Hapus juga semua log recording yang terikat ke kandang ini
   const allLogs = loadDailyRecordings();
   const remainingLogs = allLogs.filter((l) => l.kandang_id !== kandangId);
-  const deletedCount = allLogs.length - remainingLogs.length;
+  const deletedLogsCount = allLogs.length - remainingLogs.length;
   saveDailyRecordingsToStorage(remainingLogs);
 
-  return { success: true, deletedLogsCount: deletedCount };
+  return { success: true, deletedLogsCount };
 }
 
 // ============================================================================
@@ -258,31 +101,36 @@ export function deleteKandangUnit(kandangId: string): { success: boolean; delete
 
 export function loadDailyRecordings(userId?: string, kandangId?: string): DailyRecordingLog[] {
   if (typeof window === 'undefined') {
-    let list = INITIAL_RECORDING_LOGS;
-    if (userId) list = list.filter((l) => l.user_id === userId);
-    if (kandangId && kandangId !== 'all') list = list.filter((l) => l.kandang_id === kandangId);
-    return list;
+    return [];
   }
   try {
+    // Bersihkan key lama jika ada
+    if (localStorage.getItem('be_ternak_daily_recordings')) {
+      localStorage.removeItem('be_ternak_daily_recordings');
+    }
     const raw = localStorage.getItem(STORAGE_KEY_RECORDINGS);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY_RECORDINGS, JSON.stringify(INITIAL_RECORDING_LOGS));
-      let list = INITIAL_RECORDING_LOGS;
-      if (userId) list = list.filter((l) => l.user_id === userId);
-      if (kandangId && kandangId !== 'all') list = list.filter((l) => l.kandang_id === kandangId);
-      return list;
+      localStorage.setItem(STORAGE_KEY_RECORDINGS, JSON.stringify([]));
+      return [];
     }
     let list: DailyRecordingLog[] = JSON.parse(raw);
-    if (userId) list = list.filter((l) => l.user_id === userId);
-    if (kandangId && kandangId !== 'all') list = list.filter((l) => l.kandang_id === kandangId);
-    // Sort chronological: terlama ke terbaru (default)
-    return list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  } catch (e) {
-    console.error('Failed to load recordings from localStorage', e);
-    let list = INITIAL_RECORDING_LOGS;
-    if (userId) list = list.filter((l) => l.user_id === userId);
-    if (kandangId && kandangId !== 'all') list = list.filter((l) => l.kandang_id === kandangId);
+    // Bersihkan dummy lawas jika tersimpan di browser
+    list = list.filter(
+      (l) =>
+        !l.kandang_id.startsWith('kandang-subur') &&
+        !l.kandang_id.startsWith('kandang-ahmad') &&
+        !['usr-farmer-01', 'usr-farmer-02'].includes(l.user_id)
+    );
+    if (userId) {
+      list = list.filter((l) => l.user_id === userId);
+    }
+    if (kandangId && kandangId !== 'all') {
+      list = list.filter((l) => l.kandang_id === kandangId);
+    }
     return list;
+  } catch (e) {
+    console.error('Failed to load daily recordings from localStorage', e);
+    return [];
   }
 }
 
@@ -291,13 +139,78 @@ export function saveDailyRecordingsToStorage(logs: DailyRecordingLog[]): void {
   try {
     localStorage.setItem(STORAGE_KEY_RECORDINGS, JSON.stringify(logs));
   } catch (e) {
-    console.error('Failed to save recordings to localStorage', e);
+    console.error('Failed to save daily recordings to localStorage', e);
   }
 }
 
 /**
- * Rekalkulasi kronologis seluruh log untuk unit kandang tertentu.
- * Menghitung populasi berjalan, HDP, intake pakan, dan FCR secara berurutan.
+ * Tambah baris recording harian baru
+ */
+export function addDailyRecording(
+  userId: string,
+  payload: CreateRecordingPayload
+): DailyRecordingLog {
+  const allUnits = loadKandangUnits();
+  const kandang = allUnits.find((k) => k.id === payload.kandang_id);
+  if (!kandang) {
+    throw new Error('Unit kandang yang dipilih tidak ditemukan.');
+  }
+
+  // Hitung populasi berjalan
+  const currentPop = kandang.current_population || kandang.initial_population;
+  const deadCount = Number(payload.dead_count) || 0;
+  const cullCount = Number(payload.cull_count) || 0;
+  const newFinalPop = Math.max(0, currentPop - deadCount - cullCount);
+
+  // Kalkulasi metriks teknis
+  const intactEggKg = Number(payload.intact_egg_kg) || 0;
+  const intactEggCount = Number(payload.intact_egg_count) || 0;
+  const brokenEggKg = Number(payload.broken_egg_kg) || 0;
+  const feedKg = Number(payload.feed_kg) || 0;
+
+  const totalEggKg = intactEggKg + brokenEggKg;
+  const fcr = totalEggKg > 0 ? Number((feedKg / totalEggKg).toFixed(2)) : 0;
+  const hdp = newFinalPop > 0 ? Number(((intactEggCount / newFinalPop) * 100).toFixed(1)) : 0;
+  const feedIntake = newFinalPop > 0 ? Number(((feedKg * 1000) / newFinalPop).toFixed(1)) : 0;
+  const avgWeight = intactEggCount > 0 ? Number(((intactEggKg * 1000) / intactEggCount).toFixed(1)) : 62.5;
+
+  const newLog: DailyRecordingLog = {
+    id: `rec-${payload.kandang_id}-${Date.now()}`,
+    user_id: userId,
+    kandang_id: payload.kandang_id,
+    kandang_name: kandang.name,
+    date: payload.date,
+    dead_count: deadCount,
+    cull_count: cullCount,
+    final_population: newFinalPop,
+    intact_egg_kg: intactEggKg,
+    intact_egg_count: intactEggCount,
+    avg_egg_weight_gram: avgWeight,
+    broken_egg_kg: brokenEggKg,
+    hdp_percent: hdp,
+    feed_kg: feedKg,
+    feed_type: payload.feed_type || 'Ransum be-ternak AI #1',
+    feed_intake_gram: feedIntake,
+    fcr: fcr,
+    condition_note: payload.condition_note || 'Normal',
+    notes: payload.notes?.trim() || undefined,
+    created_at: new Date().toISOString(),
+  };
+
+  const allLogs = loadDailyRecordings();
+  const updatedLogs = [newLog, ...allLogs];
+  saveDailyRecordingsToStorage(updatedLogs);
+
+  // Perbarui populasi aktif kandang
+  kandang.current_population = newFinalPop;
+  const updatedUnits = allUnits.map((k) => (k.id === kandang.id ? kandang : k));
+  saveKandangUnitsToStorage(updatedUnits);
+
+  return newLog;
+}
+
+/**
+ * Rekalkulasi kronologis populasi kandang setelah log dihapus
  */
 export function recalculateKandangChronology(kandangId: string): void {
   const allUnits = loadKandangUnits();
@@ -305,93 +218,33 @@ export function recalculateKandangChronology(kandangId: string): void {
   if (!kandang) return;
 
   const allLogs = loadDailyRecordings();
-  const targetLogs = allLogs
+  const kandangLogs = allLogs
     .filter((l) => l.kandang_id === kandangId)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   let runningPop = kandang.initial_population;
-  const recalculatedTarget = targetLogs.map((log) => {
-    runningPop = runningPop - (log.dead_count + log.cull_count);
-    const totalEggKg = log.intact_egg_kg + log.broken_egg_kg;
-    const fcr = totalEggKg > 0 ? Number((log.feed_kg / totalEggKg).toFixed(2)) : 0;
+  const updatedLogsMap = new Map<string, DailyRecordingLog>();
+
+  kandangLogs.forEach((log) => {
+    runningPop = Math.max(0, runningPop - log.dead_count - log.cull_count);
     const hdp = runningPop > 0 ? Number(((log.intact_egg_count / runningPop) * 100).toFixed(1)) : 0;
     const feedIntake = runningPop > 0 ? Number(((log.feed_kg * 1000) / runningPop).toFixed(1)) : 0;
-    const avgWeight = log.intact_egg_count > 0 ? Number(((log.intact_egg_kg * 1000) / log.intact_egg_count).toFixed(1)) : 62.5;
 
-    return {
+    updatedLogsMap.set(log.id, {
       ...log,
       final_population: runningPop,
       hdp_percent: hdp,
       feed_intake_gram: feedIntake,
-      fcr: fcr,
-      avg_egg_weight_gram: avgWeight,
-    };
+    });
   });
 
-  // Update kandang current_population ke populasi akhir terbaru
+  const updatedAllLogs = allLogs.map((l) => (updatedLogsMap.has(l.id) ? updatedLogsMap.get(l.id)! : l));
+  saveDailyRecordingsToStorage(updatedAllLogs);
+
   kandang.current_population = runningPop;
-  saveKandangUnitsToStorage(allUnits);
-
-  // Simpan ulang semua logs
-  const otherLogs = allLogs.filter((l) => l.kandang_id !== kandangId);
-  saveDailyRecordingsToStorage([...otherLogs, ...recalculatedTarget]);
+  saveKandangUnitsToStorage(allUnits.map((k) => (k.id === kandang.id ? kandang : k)));
 }
 
-/**
- * Simpan log recording harian baru, kemudian jalankan rekalkulasi kronologis.
- */
-export function addDailyRecording(userId: string, payload: CreateRecordingPayload): DailyRecordingLog {
-  const allUnits = loadKandangUnits(userId);
-  const kandang = allUnits.find((k) => k.id === payload.kandang_id);
-  if (!kandang) {
-    throw new Error('Unit kandang tidak valid.');
-  }
-
-  const allLogs = loadDailyRecordings();
-  const totalEggKg = payload.intact_egg_kg + payload.broken_egg_kg;
-  const fcr = totalEggKg > 0 ? Number((payload.feed_kg / totalEggKg).toFixed(2)) : 0;
-  const avgWeight =
-    payload.intact_egg_count > 0
-      ? Number(((payload.intact_egg_kg * 1000) / payload.intact_egg_count).toFixed(1))
-      : 62.5;
-
-  const newLog: DailyRecordingLog = {
-    id: `rec-${Date.now()}`,
-    user_id: userId,
-    kandang_id: payload.kandang_id,
-    kandang_name: kandang.name,
-    date: payload.date,
-    dead_count: Number(payload.dead_count) || 0,
-    cull_count: Number(payload.cull_count) || 0,
-    final_population: kandang.current_population - ((Number(payload.dead_count) || 0) + (Number(payload.cull_count) || 0)),
-    intact_egg_kg: Number(payload.intact_egg_kg) || 0,
-    intact_egg_count: Number(payload.intact_egg_count) || 0,
-    avg_egg_weight_gram: avgWeight,
-    broken_egg_kg: Number(payload.broken_egg_kg) || 0,
-    hdp_percent: 0, // Akan dihitung ulang secara presisi di recalculate
-    feed_kg: Number(payload.feed_kg) || 0,
-    feed_type: payload.feed_type || 'Ransum be-ternak AI #1',
-    feed_intake_gram: 0, // Akan dihitung ulang
-    fcr: fcr,
-    condition_note: payload.condition_note || 'Normal',
-    notes: payload.notes?.trim() || undefined,
-    created_at: new Date().toISOString(),
-  };
-
-  // Simpan log baru
-  saveDailyRecordingsToStorage([...allLogs, newLog]);
-
-  // Rekalkulasi kronologis kandang tersebut
-  recalculateKandangChronology(payload.kandang_id);
-
-  // Return log yang telah diperbarui
-  const reloaded = loadDailyRecordings().find((l) => l.id === newLog.id);
-  return reloaded || newLog;
-}
-
-/**
- * Hapus satu baris log recording, lalu rekalkulasi kronologis kandang terkait.
- */
 export function deleteDailyRecording(recordingId: string): void {
   const allLogs = loadDailyRecordings();
   const target = allLogs.find((l) => l.id === recordingId);
@@ -404,9 +257,6 @@ export function deleteDailyRecording(recordingId: string): void {
   recalculateKandangChronology(target.kandang_id);
 }
 
-/**
- * Export data recording ke format CSV
- */
 export function exportRecordingsToCsv(recordings: DailyRecordingLog[]): string {
   const headers = [
     'Tanggal',
@@ -419,29 +269,29 @@ export function exportRecordingsToCsv(recordings: DailyRecordingLog[]): string {
     'Telur Retak (kg)',
     'HDP (%)',
     'Pakan Terpakai (kg)',
-    'Feed Intake (gr/ekor)',
     'Jenis Ransum',
+    'Feed Intake (g/ekor)',
     'FCR',
     'Kondisi',
-    'Catatan Tambahan',
+    'Catatan Khusus',
   ];
 
   const rows = recordings.map((r) => [
-    `"${r.date}"`,
-    `"${r.kandang_name}"`,
+    r.date,
+    `"${r.kandang_name.replace(/"/g, '""')}"`,
     r.final_population,
     r.dead_count,
     r.cull_count,
-    r.intact_egg_kg,
+    r.intact_egg_kg.toFixed(2),
     r.intact_egg_count,
-    r.broken_egg_kg,
-    r.hdp_percent,
-    r.feed_kg,
-    r.feed_intake_gram,
-    `"${r.feed_type}"`,
-    r.fcr,
-    `"${r.condition_note}"`,
-    `"${r.notes || '-'}"`,
+    r.broken_egg_kg.toFixed(2),
+    r.hdp_percent.toFixed(1),
+    r.feed_kg.toFixed(1),
+    `"${r.feed_type.replace(/"/g, '""')}"`,
+    r.feed_intake_gram.toFixed(1),
+    r.fcr.toFixed(2),
+    `"${r.condition_note.replace(/"/g, '""')}"`,
+    `"${(r.notes || '').replace(/"/g, '""')}"`,
   ]);
 
   return [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');

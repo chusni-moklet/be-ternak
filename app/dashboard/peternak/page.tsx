@@ -15,6 +15,7 @@ import {
   submitSubscriptionPayment,
   getActiveUserId,
   setActiveUserId,
+  DEFAULT_FARMER_PROFILE,
 } from '@/lib/subscription-store';
 import { INITIAL_FEED_SOURCES } from '@/lib/mock-data';
 import {
@@ -46,7 +47,7 @@ export default function PeternakDashboardPage() {
   const [users, setUsers] = useState<UserProfile[]>(() => loadUsersFromStorage());
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     const loaded = loadUsersFromStorage();
-    return loaded.find((u) => u.role === 'peternak') || loaded[1] || null;
+    return loaded.find((u) => u.role === 'peternak') || DEFAULT_FARMER_PROFILE;
   });
   const [savedRansums, setSavedRansums] = useState<SavedRansum[]>(() => loadSavedRansumsFromStorage());
   const [mounted, setMounted] = useState(false);
@@ -77,11 +78,11 @@ export default function PeternakDashboardPage() {
   const refreshUserData = () => {
     const loadedUsers = loadUsersFromStorage();
     setUsers(loadedUsers);
-    const activeId = currentUser?.id || 'usr-farmer-01';
+    const activeId = currentUser?.id || DEFAULT_FARMER_PROFILE.id;
     const farmer =
       loadedUsers.find((u) => u.id === activeId) ||
       loadedUsers.find((u) => u.role === 'peternak') ||
-      loadedUsers[1];
+      DEFAULT_FARMER_PROFILE;
     setCurrentUser(farmer);
 
     const loadedRansums = loadSavedRansumsFromStorage();
@@ -292,7 +293,7 @@ export default function PeternakDashboardPage() {
           `}
         >
           {/* Top Section: Farmer Profile Card */}
-          <div className="p-4 border-b border-emerald-950/70 space-y-3">
+          <div className="p-4 border-b border-emerald-950/70">
             <div className="p-3 rounded-2xl bg-gradient-to-r from-teal-950/60 to-slate-900/60 border border-teal-500/30 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center text-teal-300 shadow-md text-xl">
                 👨‍🌾
@@ -310,30 +311,6 @@ export default function PeternakDashboardPage() {
                 <p suppressHydrationWarning className="text-[9px] text-slate-400 truncate">
                   {currentUser?.livestock_types?.join(', ') || 'Ayam Unggas'}
                 </p>
-              </div>
-            </div>
-
-            {/* Switch Akun Demo Peternak */}
-            <div className="bg-slate-900/80 p-1.5 rounded-xl border border-slate-800 space-y-1">
-              <span className="text-[10px] font-semibold text-slate-400 block px-1.5">
-                Ganti Akun Demo Peternak:
-              </span>
-              <div className="grid grid-cols-2 gap-1 text-[11px]">
-                {users
-                  .filter((u) => u.role === 'peternak')
-                  .map((u) => (
-                    <button
-                      key={u.id}
-                      onClick={() => handleSelectFarmer(u.id)}
-                      className={`px-2 py-1 rounded-lg truncate text-left font-medium transition-all ${
-                        currentUser.id === u.id
-                          ? 'bg-teal-600 text-white font-bold'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                      }`}
-                    >
-                      {u.name.split(' ')[0]} ({u.is_verified ? 'Aktif' : 'Pending'})
-                    </button>
-                  ))}
               </div>
             </div>
           </div>

@@ -16,6 +16,7 @@ import {
   loadSimulationScenariosFromStorage,
   saveSimulationScenarioToStorage,
   deleteSimulationScenarioFromStorage,
+  DEFAULT_FARMER_PROFILE,
 } from '@/lib/subscription-store';
 import {
   Calculator,
@@ -62,7 +63,7 @@ export default function LayerSimulationPage() {
   const [users, setUsers] = useState<UserProfile[]>(() => loadUsersFromStorage());
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     const loaded = loadUsersFromStorage();
-    return loaded.find((u) => u.role === 'peternak') || loaded[1] || null;
+    return loaded.find((u) => u.role === 'peternak') || DEFAULT_FARMER_PROFILE;
   });
   const [savedRansums, setSavedRansums] = useState<SavedRansum[]>(() => loadSavedRansumsFromStorage());
   const [scenarios, setScenarios] = useState<LayerSimulationScenario[]>(() =>
@@ -406,7 +407,7 @@ export default function LayerSimulationPage() {
 
     const newScenario: LayerSimulationScenario = {
       id: `scen-${Date.now()}`,
-      user_id: currentUser?.id || 'usr-farmer-01',
+      user_id: currentUser?.id || DEFAULT_FARMER_PROFILE.id,
       name: scenarioNameInput.trim(),
       created_at: new Date().toISOString(),
       params: {
@@ -618,8 +619,8 @@ export default function LayerSimulationPage() {
             ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
           `}
         >
-          {/* Top: Profile Card & Switcher */}
-          <div className="p-4 border-b border-[#1E352B] space-y-3">
+          {/* Top: Profile Card */}
+          <div className="p-4 border-b border-[#1E352B]">
             <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-950/60 to-slate-900/60 border border-emerald-500/30 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shadow-md text-xl">
                 👨‍🌾
@@ -635,35 +636,8 @@ export default function LayerSimulationPage() {
                   {currentUser?.business_name}
                 </p>
                 <p suppressHydrationWarning className="text-[9px] text-slate-400 truncate">
-                  Populasi: {(currentUser?.poultry_capacity || 5000).toLocaleString('id-ID')} Ekor Layer
+                  {currentUser?.poultry_capacity ? `Populasi: ${currentUser.poultry_capacity.toLocaleString('id-ID')} Ekor Layer` : 'Unit Peternakan Unggas'}
                 </p>
-              </div>
-            </div>
-
-            {/* Switcher Akun Demo Peternak */}
-            <div className="bg-[#0F1D17] p-2 rounded-xl border border-[#1E352B] space-y-1.5">
-              <span className="text-[10px] font-semibold text-slate-400 block px-1">
-                Pilih Akun Demo Peternak:
-              </span>
-              <div className="grid grid-cols-2 gap-1 text-[11px]">
-                {users
-                  .filter((u) => u.role === 'peternak')
-                  .map((u) => (
-                    <button
-                      key={u.id}
-                      onClick={() => handleSelectFarmer(u.id)}
-                      className={`px-2 py-1.5 rounded-lg truncate text-left font-medium transition-all ${
-                        currentUser.id === u.id
-                          ? 'bg-emerald-600 text-white font-bold shadow-md shadow-emerald-600/30'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                      }`}
-                    >
-                      <div className="truncate font-semibold">{u.name.split(' ')[0]}</div>
-                      <div className="text-[9px] opacity-80">
-                        {(u.poultry_capacity || 0).toLocaleString('id-ID')} ekor
-                      </div>
-                    </button>
-                  ))}
               </div>
             </div>
           </div>

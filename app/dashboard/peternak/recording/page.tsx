@@ -15,6 +15,7 @@ import {
 } from '@/lib/types';
 import {
   INITIAL_USERS,
+  DEFAULT_FARMER_PROFILE,
   loadUsersFromStorage,
   getActiveUserId,
   setActiveUserId,
@@ -93,10 +94,9 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
   // Active sub-menu tab: 'recording' vs 'health'
   const [activeTab, setActiveTab] = useState<'recording' | 'health'>(initialTab);
 
-  // 1. Data User & Akun Aktif (Inisialisasi seragam untuk mencegah hydration mismatch)
-  const defaultFarmer = INITIAL_USERS.find((u) => u.role === 'peternak') || INITIAL_USERS[1];
-  const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
-  const [currentUser, setCurrentUser] = useState<UserProfile>(defaultFarmer);
+  // 1. Data User & Akun Aktif (Inisialisasi bersih dengan fallback standar)
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [currentUser, setCurrentUser] = useState<UserProfile>(DEFAULT_FARMER_PROFILE);
 
   // Client mounted flag
   const isMounted = useSyncExternalStore(
@@ -127,19 +127,19 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
   const [newKandangName, setNewKandangName] = useState('');
   const [newKandangType, setNewKandangType] = useState<KandangHouseType>('Open House');
   const [newKandangStrain, setNewKandangStrain] = useState('ISA Brown');
-  const [newKandangPop, setNewKandangPop] = useState<number>(2500);
+  const [newKandangPop, setNewKandangPop] = useState<number>(2000);
   const [newKandangDate, setNewKandangDate] = useState('2026-11-24');
   const [newKandangAge, setNewKandangAge] = useState<number>(20);
 
-  // 4. Form Input Recording Harian
+  // 4. Form Input Recording Harian (Default Kosong / 0 untuk Input Data Riil)
   const [recordDate, setRecordDate] = useState<string>('2026-11-24');
   const [recordKandangId, setRecordKandangId] = useState<string>('');
   const [recordDead, setRecordDead] = useState<number>(0);
   const [recordCull, setRecordCull] = useState<number>(0);
-  const [recordEggKg, setRecordEggKg] = useState<number>(140);
-  const [recordEggCount, setRecordEggCount] = useState<number>(2240);
-  const [recordBrokenKg, setRecordBrokenKg] = useState<number>(1.0);
-  const [recordFeedKg, setRecordFeedKg] = useState<number>(275);
+  const [recordEggKg, setRecordEggKg] = useState<number>(0);
+  const [recordEggCount, setRecordEggCount] = useState<number>(0);
+  const [recordBrokenKg, setRecordBrokenKg] = useState<number>(0);
+  const [recordFeedKg, setRecordFeedKg] = useState<number>(0);
   const [recordFeedType, setRecordFeedType] = useState<string>('Ransum be-ternak AI #1');
   const [recordCondition, setRecordCondition] = useState<string>('Normal');
   const [recordNotes, setRecordNotes] = useState<string>('');
@@ -172,7 +172,7 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
     const userToUse =
       activeUser && activeUser.role === 'peternak'
         ? activeUser
-        : loadedUsers.find((u) => u.role === 'peternak') || defaultFarmer;
+        : loadedUsers.find((u) => u.role === 'peternak') || DEFAULT_FARMER_PROFILE;
 
     if (userToUse) {
       setCurrentUser(userToUse);
@@ -265,8 +265,8 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
 
   // Live preview metrics di form recording
   const formPreview = useMemo(() => {
-    const pop = activeFormKandang?.current_population || 2500;
-    const effectivePop = Math.max(1, pop - (Number(recordDead) || 0) - (Number(recordCull) || 0));
+    const pop = activeFormKandang?.current_population || activeFormKandang?.initial_population || 0;
+    const effectivePop = Math.max(0, pop - (Number(recordDead) || 0) - (Number(recordCull) || 0));
     const hdp = Number(effectivePop > 0 ? (((Number(recordEggCount) || 0) / effectivePop) * 100).toFixed(1) : 0);
     const feedIntake = Number(effectivePop > 0 ? (((Number(recordFeedKg) || 0) * 1000) / effectivePop).toFixed(1) : 0);
     const fcr = Number(Number(recordEggKg) > 0 ? ((Number(recordFeedKg) || 0) / Number(recordEggKg)).toFixed(2) : 0);
@@ -824,8 +824,8 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
             isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
           } lg:translate-x-0 transition-transform duration-300 ease-in-out fixed lg:static z-40 top-[57px] bottom-0 left-0 w-72 bg-[#0A1410] border-r border-[#1E352B] flex flex-col shrink-0 overflow-y-auto`}
         >
-          {/* Top: Profile Card & Switcher */}
-          <div className="p-4 border-b border-[#1E352B] space-y-3">
+          {/* Top: Profile Card */}
+          <div className="p-4 border-b border-[#1E352B]">
             <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-950/60 to-slate-900/60 border border-emerald-500/30 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shadow-md text-xl">
                 👨‍🌾
@@ -841,35 +841,8 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
                   {currentUser.business_name}
                 </p>
                 <p suppressHydrationWarning className="text-[9px] text-slate-400 truncate">
-                  Populasi: {(currentUser.poultry_capacity || 5000).toLocaleString('id-ID')} Ekor Layer
+                  {currentUser.poultry_capacity ? `Kapasitas: ${currentUser.poultry_capacity.toLocaleString('id-ID')} Ekor` : 'Unit Peternakan Unggas'}
                 </p>
-              </div>
-            </div>
-
-            {/* Switcher Akun Demo Peternak */}
-            <div className="bg-[#0F1D17] p-2 rounded-xl border border-[#1E352B] space-y-1.5">
-              <span className="text-[10px] font-semibold text-slate-400 block px-1">
-                Pilih Akun Demo Peternak:
-              </span>
-              <div className="grid grid-cols-2 gap-1 text-[11px]">
-                {users
-                  .filter((u) => u.role === 'peternak')
-                  .map((u) => (
-                    <button
-                      key={u.id}
-                      onClick={() => handleSelectFarmer(u.id)}
-                      className={`px-2 py-1.5 rounded-lg truncate text-left font-medium transition-all cursor-pointer ${
-                        currentUser.id === u.id
-                          ? 'bg-emerald-600 text-white font-bold shadow-md shadow-emerald-600/30'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                      }`}
-                    >
-                      <div className="truncate font-semibold">{u.name.split(' ')[0]}</div>
-                      <div className="text-[9px] opacity-80">
-                        {(u.poultry_capacity || 0).toLocaleString('id-ID')} ekor
-                      </div>
-                    </button>
-                  ))}
               </div>
             </div>
           </div>
@@ -1089,73 +1062,95 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {userKandangs.map((k) => {
-                    const isSelected = selectedKandangId === k.id;
-                    const livePop = k.current_population || k.initial_population;
-                    const rate = k.initial_population > 0 ? ((livePop / k.initial_population) * 100).toFixed(1) : '100';
+                {userKandangs.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-[#0F1D17] border border-[#1E352B] text-center space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                      <Building2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Belum Ada Unit Kandang</h3>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
+                        Mulai dengan menambahkan unit kandang pertama Anda (nama kandang, strain ayam, populasi awal, dan umur) untuk mencatat recording harian.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddKandangOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs transition-all shadow-lg shadow-emerald-600/20 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>+ Tambah Unit Kandang Pertama</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {userKandangs.map((k) => {
+                      const isSelected = selectedKandangId === k.id;
+                      const livePop = k.current_population || k.initial_population;
+                      const rate = k.initial_population > 0 ? ((livePop / k.initial_population) * 100).toFixed(1) : '100';
 
-                    return (
-                      <div
-                        key={k.id}
-                        onClick={() => setSelectedKandangId(isSelected ? 'all' : k.id)}
-                        className={`p-3.5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
-                          isSelected
-                            ? 'bg-gradient-to-br from-[#122b20] to-[#0A1410] border-emerald-500 shadow-lg shadow-emerald-500/10'
-                            : 'bg-[#0F1D17] hover:bg-[#13261e] border-[#1E352B]'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <h3 className="text-sm font-bold text-white">{k.name}</h3>
-                              <span
-                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                  k.house_type === 'Closed House'
-                                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                                    : k.house_type === 'Semi-Closed'
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                }`}
-                              >
-                                {k.house_type}
+                      return (
+                        <div
+                          key={k.id}
+                          onClick={() => setSelectedKandangId(isSelected ? 'all' : k.id)}
+                          className={`p-3.5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
+                            isSelected
+                              ? 'bg-gradient-to-br from-[#122b20] to-[#0A1410] border-emerald-500 shadow-lg shadow-emerald-500/10'
+                              : 'bg-[#0F1D17] hover:bg-[#13261e] border-[#1E352B]'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <h3 className="text-sm font-bold text-white">{k.name}</h3>
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                    k.house_type === 'Closed House'
+                                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                                      : k.house_type === 'Semi-Closed'
+                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                  }`}
+                                >
+                                  {k.house_type}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                Strain: <span className="text-slate-300 font-semibold">{k.strain}</span> • Umur: {k.age_weeks} Minggu
+                              </p>
+                            </div>
+
+                            {isSelected && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500 text-slate-950">
+                                Aktif
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Population bar */}
+                          <div className="space-y-1 pt-1">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-slate-400">Populasi Hidup:</span>
+                              <span className="font-bold text-emerald-300">
+                                {livePop.toLocaleString('id-ID')} / {k.initial_population.toLocaleString('id-ID')} ekor
                               </span>
                             </div>
-                            <p className="text-[10px] text-slate-400 mt-0.5">
-                              Strain: <span className="text-slate-300 font-semibold">{k.strain}</span> • Umur: {k.age_weeks} Minggu
-                            </p>
-                          </div>
-
-                          {isSelected && (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500 text-slate-950">
-                              Aktif
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Population bar */}
-                        <div className="space-y-1 pt-1">
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="text-slate-400">Populasi Hidup:</span>
-                            <span className="font-bold text-emerald-300">
-                              {livePop.toLocaleString('id-ID')} / {k.initial_population.toLocaleString('id-ID')} ekor
-                            </span>
-                          </div>
-                          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-emerald-500 rounded-full transition-all"
-                              style={{ width: `${Math.min(100, Math.max(0, Number(rate)))}%` }}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between text-[9px] text-slate-500">
-                            <span>Daya Hidup: {rate}%</span>
-                            <span>Chick-in: {k.chick_in_date}</span>
+                            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-emerald-500 rounded-full transition-all"
+                                style={{ width: `${Math.min(100, Math.max(0, Number(rate)))}%` }}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between text-[9px] text-slate-500">
+                              <span>Daya Hidup: {rate}%</span>
+                              <span>Chick-in: {k.chick_in_date}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* SECTION: 4 KARTU KPI UTAMA */}
@@ -1341,12 +1336,17 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
                           onChange={(e) => setRecordKandangId(e.target.value)}
                           className="w-full px-3 py-2 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
                           required
+                          disabled={userKandangs.length === 0}
                         >
-                          {userKandangs.map((k) => (
-                            <option key={k.id} value={k.id}>
-                              {k.name} ({k.current_population || k.initial_population} ekor)
-                            </option>
-                          ))}
+                          {userKandangs.length === 0 ? (
+                            <option value="">-- Belum ada unit kandang --</option>
+                          ) : (
+                            userKandangs.map((k) => (
+                              <option key={k.id} value={k.id}>
+                                {k.name} ({k.current_population || k.initial_population} ekor)
+                              </option>
+                            ))
+                          )}
                         </select>
                       </div>
                     </div>
@@ -1534,11 +1534,17 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
                     {/* Submit button */}
                     <button
                       type="submit"
-                      disabled={isSubmitting}
-                      className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 transition-all cursor-pointer flex items-center justify-center gap-2"
+                      disabled={isSubmitting || userKandangs.length === 0}
+                      className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <CalendarCheck className="w-4 h-4" />
-                      <span>{isSubmitting ? 'Menyimpan Recording...' : 'Simpan Log Recording Harian'}</span>
+                      <span>
+                        {userKandangs.length === 0
+                          ? '+ Tambah Unit Kandang Terlebih Dahulu'
+                          : isSubmitting
+                          ? 'Menyimpan Recording...'
+                          : 'Simpan Log Recording Harian'}
+                      </span>
                     </button>
                   </form>
                 </div>

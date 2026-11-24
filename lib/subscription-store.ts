@@ -11,7 +11,7 @@ import {
 import { INITIAL_FEED_SOURCES } from './mock-data';
 
 // ============================================================================
-// Initial Mock Users
+// Initial Users (HANYA AKUN ADMIN RESMI - SEMUA DATA DUMMY DIHAPUS)
 // ============================================================================
 
 export const INITIAL_USERS: UserProfile[] = [
@@ -34,318 +34,93 @@ export const INITIAL_USERS: UserProfile[] = [
     verified_by: 'System Superadmin',
     created_at: '2025-01-01T00:00:00Z',
   },
-  {
-    id: 'usr-farmer-01',
-    name: 'H. Subur Widodo',
-    email: 'suburfarm.blitar@gmail.com',
-    password: 'peternak123',
-    phone: '081334567891',
-    role: 'peternak',
-    business_name: 'Subur Makmur Layer Farm',
-    location_address: 'Desa Kanigoro, Kec. Kanigoro, Kab. Blitar, Jawa Timur',
-    lat: -8.1283,
-    lng: 112.2181,
-    livestock_types: ['Ayam Petelur (Layer)'],
-    poultry_capacity: 5000,
-    subscription_status: 'active',
-    subscription_plan: 'peternak_pro',
-    subscription_paid_amount: 99000,
-    subscription_expires_at: '2026-12-31T23:59:59Z',
-    is_verified: true,
-    verified_at: '2026-11-01T10:15:00Z',
-    verified_by: 'Budi Santoso, S.Pt (Admin)',
-    created_at: '2026-10-15T08:00:00Z',
-  },
-  {
-    id: 'usr-farmer-02',
-    name: 'Ahmad Fauzi',
-    email: 'fauzi.joper@yahoo.co.id',
-    password: 'peternak123',
-    phone: '085211223344',
-    role: 'peternak',
-    business_name: 'Kandang Berkah Joper Ciamis',
-    location_address: 'Kec. Cijeungjing, Kab. Ciamis, Jawa Barat',
-    lat: -7.3374,
-    lng: 108.3851,
-    livestock_types: ['Ayam Kampung / Joper'],
-    poultry_capacity: 2500,
-    subscription_status: 'pending_verification',
-    subscription_plan: 'peternak_starter',
-    subscription_paid_amount: 49000,
-    subscription_expires_at: null,
-    is_verified: false,
-    verified_at: null,
-    verified_by: null,
-    created_at: '2026-11-19T14:30:00Z',
-  },
-  {
-    id: 'usr-supplier-01',
-    name: 'Hj. Rohmah',
-    email: 'barokah.dedak@gmail.com',
-    password: 'pemasok123',
-    phone: '081298765432',
-    role: 'pemilik_pakan',
-    business_name: 'UD Barokah Dedak & Bekatul Pasuruan',
-    location_address: 'Jl. Raya Grati No. 45, Kec. Grati, Pasuruan, Jawa Timur',
-    lat: -7.7295,
-    lng: 113.018,
-    feed_materials: ['Dedak Padi Halus', 'Bekatul Super'],
-    supply_capacity_ton_month: 25,
-    subscription_status: 'active',
-    subscription_plan: 'pemasok_umkm',
-    subscription_paid_amount: 79000,
-    subscription_expires_at: '2026-12-15T23:59:59Z',
-    is_verified: true,
-    verified_at: '2026-11-10T09:00:00Z',
-    verified_by: 'Budi Santoso, S.Pt (Admin)',
-    created_at: '2026-10-20T11:00:00Z',
-  },
-  {
-    id: 'usr-supplier-02',
-    name: 'Ir. Hendra Kusuma',
-    email: 'sinaragro.malang@outlook.com',
-    password: 'pemasok123',
-    phone: '087812349988',
-    role: 'pemilik_pakan',
-    business_name: 'PT Sinar Agro Mandiri (Ampas Tahu & Maggot BSF)',
-    location_address: 'Kecamatan Lawang, Kab. Malang, Jawa Timur',
-    lat: -7.838,
-    lng: 112.699,
-    feed_materials: ['Ampas Tahu Kering Pres', 'Tepung Maggot BSF'],
-    supply_capacity_ton_month: 40,
-    subscription_status: 'pending_verification',
-    subscription_plan: 'pemasok_pro',
-    subscription_paid_amount: 149000,
-    subscription_expires_at: null,
-    is_verified: false,
-    verified_at: null,
-    verified_by: null,
-    created_at: '2026-11-20T08:15:00Z',
-  },
 ];
 
-// ============================================================================
-// Initial Mock Subscription Transactions
-// ============================================================================
+// Fallback profile peternak saat belum ada akun peternak yang didaftarkan
+export const DEFAULT_FARMER_PROFILE: UserProfile = {
+  id: 'usr-farmer-local',
+  name: 'Peternak Layer',
+  email: 'peternak@be-ternak.id',
+  phone: '081234567890',
+  role: 'peternak',
+  business_name: 'Peternakan Layer Saya',
+  location_address: 'Indonesia',
+  lat: -8.1283,
+  lng: 112.2181,
+  livestock_types: ['Ayam Petelur (Layer)'],
+  poultry_capacity: 0,
+  subscription_status: 'active',
+  subscription_plan: 'peternak_starter',
+  subscription_paid_amount: 0,
+  is_verified: true,
+  verified_at: '2026-01-01T00:00:00Z',
+  verified_by: 'System',
+  created_at: '2026-01-01T00:00:00Z',
+};
 
-export const INITIAL_TRANSACTIONS: SubscriptionTransaction[] = [
-  {
-    id: 'tx-2026-001',
-    user_id: 'usr-farmer-01',
-    user_name: 'H. Subur Widodo',
-    user_role: 'peternak',
-    business_name: 'Subur Makmur Layer Farm',
-    plan_id: 'peternak_pro',
-    plan_name: 'Paket Pro Peternak Mandiri (30 Hari)',
-    amount: 99000,
-    payment_method: 'bank_transfer_bca',
-    payment_ref: 'BCA-TRX-774910',
-    status: 'approved',
-    notes: 'Pembayaran transfer valid ke rekening BCA PT be-ternak AI.',
-    created_at: '2026-11-01T09:40:00Z',
-    verified_at: '2026-11-01T10:15:00Z',
-    verified_by: 'Budi Santoso, S.Pt (Admin)',
-  },
-  {
-    id: 'tx-2026-002',
-    user_id: 'usr-supplier-01',
-    user_name: 'Hj. Rohmah',
-    user_role: 'pemilik_pakan',
-    business_name: 'UD Barokah Dedak & Bekatul Pasuruan',
-    plan_id: 'pemasok_umkm',
-    plan_name: 'Paket Mitra Suplai UMKM (30 Hari)',
-    amount: 79000,
-    payment_method: 'qris',
-    payment_ref: 'QRIS-NMD-881903',
-    status: 'approved',
-    notes: 'QRIS settlement terkonfirmasi otomatis via gateway.',
-    created_at: '2026-11-10T08:50:00Z',
-    verified_at: '2026-11-10T09:00:00Z',
-    verified_by: 'Budi Santoso, S.Pt (Admin)',
-  },
-  {
-    id: 'tx-2026-003',
-    user_id: 'usr-farmer-02',
-    user_name: 'Ahmad Fauzi',
-    user_role: 'peternak',
-    business_name: 'Kandang Berkah Joper Ciamis',
-    plan_id: 'peternak_starter',
-    plan_name: 'Paket Starter Peternak (30 Hari)',
-    amount: 49000,
-    payment_method: 'bank_transfer_mandiri',
-    payment_ref: 'MANDIRI-MBK-55201',
-    status: 'pending',
-    notes: 'Menunggu pengecekan mutasi rekening Bank Mandiri oleh Admin.',
-    created_at: '2026-11-19T14:35:00Z',
-    verified_at: null,
-    verified_by: null,
-  },
-  {
-    id: 'tx-2026-004',
-    user_id: 'usr-supplier-02',
-    user_name: 'Ir. Hendra Kusuma',
-    user_role: 'pemilik_pakan',
-    business_name: 'PT Sinar Agro Mandiri (Ampas Tahu & Maggot BSF)',
-    plan_id: 'pemasok_pro',
-    plan_name: 'Paket Prioritas Agroindustri (30 Hari)',
-    amount: 149000,
-    payment_method: 'qris',
-    payment_ref: 'QRIS-SINARAGRO-99321',
-    status: 'pending',
-    notes: 'Bukti transfer QRIS terunggah. Membutuhkan verifikasi admin untuk mengaktifkan centang hijau pakan di peta.',
-    created_at: '2026-11-20T08:20:00Z',
-    verified_at: null,
-    verified_by: null,
-  },
-];
+// Fallback profile pemasok pakan saat belum ada akun pemasok yang didaftarkan
+export const DEFAULT_SUPPLIER_PROFILE: UserProfile = {
+  id: 'usr-supplier-local',
+  name: 'Pemilik Pakan',
+  email: 'pemasok@be-ternak.id',
+  phone: '081234567890',
+  role: 'pemilik_pakan',
+  business_name: 'Sentra Pakan Alternatif',
+  location_address: 'Indonesia',
+  lat: -7.7295,
+  lng: 113.018,
+  feed_materials: [],
+  supply_capacity_ton_month: 0,
+  subscription_status: 'active',
+  subscription_plan: 'pemasok_umkm',
+  subscription_paid_amount: 0,
+  is_verified: true,
+  verified_at: '2026-01-01T00:00:00Z',
+  verified_by: 'System',
+  created_at: '2026-01-01T00:00:00Z',
+};
 
 // ============================================================================
-// Initial Mock Saved Ransum (Resep AI Peternak)
+// Initial Clean Subscription Transactions (Kosong untuk Data Riil)
 // ============================================================================
 
-export const INITIAL_SAVED_RANSUMS: SavedRansum[] = [
-  {
-    id: 'ransum-01',
-    user_id: 'usr-farmer-01',
-    title: 'Ransum Layer Murah Hemat Jagung 40% (Blitar)',
-    livestock_type: 'Ayam Petelur (Layer)',
-    total_cost_per_kg: 5400,
-    savings_percent: '34% Hemat vs Konsentrat Komersial',
-    ingredients: [
-      { bahan: 'Jagung Pipil Kering Blitar', persentase: 45, peran: 'Sumber Energi Karbohidrat' },
-      { bahan: 'Dedak Padi Halus (Kec. Kanigoro)', persentase: 20, peran: 'Serat & Pengisi Murah' },
-      { bahan: 'Bungkil Kedelai / SBM', persentase: 15, peran: 'Protein Kasar Utama (PK 46%)' },
-      { bahan: 'Tepung Ikan Limbah Pantai Prigi', persentase: 8, peran: 'Asam Amino Lisin & Metionin' },
-      { bahan: 'Grit Cangkang Kupang Laut', persentase: 10, peran: 'Kalsium Kerabang Telur (Ca >38%)' },
-      { bahan: 'Premix Mineral & Vitamin', persentase: 2, peran: 'Mikronutrisi & Elektrolit' },
-    ],
-    created_at: '2026-11-05T10:00:00Z',
-  },
-  {
-    id: 'ransum-02',
-    user_id: 'usr-farmer-02',
-    title: 'Ransum Starter Joper Probiotik Ciamis',
-    livestock_type: 'Ayam Kampung / Joper',
-    total_cost_per_kg: 4850,
-    savings_percent: '42% Penghematan Siklus Pembesaran',
-    ingredients: [
-      { bahan: 'Dedak Fermentasi EM4', persentase: 30, peran: 'Pemecah Asam Fitat & Serat Kasar' },
-      { bahan: 'Jagung Halus Priangan', persentase: 40, peran: 'Energi Metabolis (EM 3.200 kcal)' },
-      { bahan: 'Tepung Maggot BSF Kering', persentase: 15, peran: 'Protein Kasar Hewani 44%' },
-      { bahan: 'Ampas Tahu Kering Pres', persentase: 12, peran: 'Protein Nabati Murah' },
-      { bahan: 'Tepung Daun Kelor / Indigofera', persentase: 3, peran: 'Karotenoid & Antioksidan Alami' },
-    ],
-    created_at: '2026-11-19T15:00:00Z',
-  },
-];
+export const INITIAL_TRANSACTIONS: SubscriptionTransaction[] = [];
+
+// ============================================================================
+// Initial Clean Saved Ransum (Kosong untuk Data Riil)
+// ============================================================================
+
+export const INITIAL_SAVED_RANSUMS: SavedRansum[] = [];
 
 // ============================================================================
 // LocalStorage Persistence Helpers
 // ============================================================================
 
-const STORAGE_KEY_USERS = 'petapakan_users_v1';
-const STORAGE_KEY_TXS = 'petapakan_txs_v1';
-const STORAGE_KEY_RANSUMS = 'petapakan_ransums_v1';
-const STORAGE_KEY_ACTIVE_USER = 'petapakan_active_user_id_v1';
-const STORAGE_KEY_SIMULATIONS = 'petapakan_layer_simulations_v1';
-const STORAGE_KEY_FEEDS = 'petapakan_feed_sources_v2';
+const STORAGE_KEY_USERS = 'be_ternak_users_v2';
+const STORAGE_KEY_TXS = 'be_ternak_txs_v2';
+const STORAGE_KEY_RANSUMS = 'be_ternak_ransums_v2';
+const STORAGE_KEY_ACTIVE_USER = 'be_ternak_active_user_id_v2';
+const STORAGE_KEY_SIMULATIONS = 'be_ternak_layer_simulations_v2';
+const STORAGE_KEY_FEEDS = 'be_ternak_feed_sources_v3';
+
+// Bersihkan cache legacy dummy di browser lama
+if (typeof window !== 'undefined') {
+  try {
+    const legacyKeys = [
+      'petapakan_users_v1',
+      'petapakan_txs_v1',
+      'petapakan_ransums_v1',
+      'petapakan_active_user_id_v1',
+      'petapakan_layer_simulations_v1',
+      'petapakan_feed_sources_v2',
+      'be_ternak_kandang_units',
+      'be_ternak_daily_recordings',
+    ];
+    legacyKeys.forEach((key) => localStorage.removeItem(key));
+  } catch {}
+}
 
 export const SEEDED_FEED_SOURCES: FeedSource[] = [
-  {
-    id: 'feed-barokah-01',
-    supplier_id: 'usr-supplier-01',
-    supplier_name: 'UD Barokah Dedak & Bekatul Pasuruan',
-    name: 'Dedak Padi Super Halus & Bekatul',
-    feed_material: 'Dedak Padi Hasil Gilingan Padi Segar (Kadar Air < 13%)',
-    category: 'Limbah Pertanian',
-    target_livestock: ['Ayam Petelur (Layer)', 'Ayam Broiler (Pedaging)', 'Bebek / Itik (Petelur & Pedaging)'],
-    estimated_price_per_kg: 3200,
-    availability_status: 'Melimpah',
-    stock_ton: 15.5,
-    lat: -7.7295,
-    lng: 113.018,
-    contact_info: 'Hj. Rohmah (081298765432) - UD Barokah Dedak',
-    is_verified: true,
-    source_type: 'diverifikasi_admin',
-    last_verified_at: '2026-11-10T09:00:00Z',
-    created_at: '2026-10-25T08:00:00Z',
-  },
-  {
-    id: 'feed-barokah-02',
-    supplier_id: 'usr-supplier-01',
-    supplier_name: 'UD Barokah Dedak & Bekatul Pasuruan',
-    name: 'Tepung Maggot BSF Kering Berprotein 44%',
-    feed_material: 'Prepupa Maggot BSF Oven Higienis untuk Pengganti Tepung Ikan',
-    category: 'Limbah Perikanan & Ternak',
-    target_livestock: ['Ayam Broiler (Pedaging)', 'Ayam Kampung / Joper'],
-    estimated_price_per_kg: 18500,
-    availability_status: 'Tersedia',
-    stock_ton: 4.2,
-    lat: -7.7310,
-    lng: 113.021,
-    contact_info: 'Hj. Rohmah (081298765432) - UD Barokah Dedak',
-    is_verified: true,
-    source_type: 'diverifikasi_admin',
-    last_verified_at: '2026-11-15T10:00:00Z',
-    created_at: '2026-11-01T09:00:00Z',
-  },
-  {
-    id: 'feed-barokah-03',
-    supplier_id: 'usr-supplier-01',
-    supplier_name: 'UD Barokah Dedak & Bekatul Pasuruan',
-    name: 'Ampas Tahu Segar Harian',
-    feed_material: 'Ampas Tahu Segar Harian (Kadar Air 75%) Sumber Protein Nabati',
-    category: 'Limbah Agroindustri',
-    target_livestock: ['Ayam Petelur (Layer)', 'Bebek / Itik (Petelur & Pedaging)'],
-    estimated_price_per_kg: 500,
-    availability_status: 'Tersedia',
-    stock_ton: 1.0,
-    lat: -7.7280,
-    lng: 113.015,
-    contact_info: 'Hj. Rohmah (081298765432) - UD Barokah Dedak',
-    is_verified: true,
-    source_type: 'diverifikasi_admin',
-    last_verified_at: '2026-11-16T11:00:00Z',
-    created_at: '2026-11-02T10:00:00Z',
-  },
-  {
-    id: 'feed-barokah-04',
-    supplier_id: 'usr-supplier-01',
-    supplier_name: 'UD Barokah Dedak & Bekatul Pasuruan',
-    name: 'Ampas Tahu Putih Kering Pres Mesin',
-    feed_material: 'Ampas Tahu Rendah Air (Pres Hidrolik) Sumber Protein Nabati 24%',
-    category: 'Limbah Agroindustri',
-    target_livestock: ['Ayam Petelur (Layer)', 'Ayam Kampung / Joper'],
-    estimated_price_per_kg: 1800,
-    availability_status: 'Melimpah',
-    stock_ton: 22.0,
-    lat: -7.7290,
-    lng: 113.019,
-    contact_info: 'Hj. Rohmah (081298765432) - UD Barokah Dedak',
-    is_verified: false, // PENGAJUAN BARU MENUNGGU VERIFIKASI ADMIN!
-    source_type: 'pengajuan_pemasok',
-    last_verified_at: null,
-    created_at: '2026-11-20T14:00:00Z',
-  },
-  {
-    id: 'feed-sinar-01',
-    supplier_id: 'usr-supplier-02',
-    supplier_name: 'PT Sinar Agro Mandiri',
-    name: 'Tepung Daun Indigofera & Gamal Halus',
-    feed_material: 'Konsentrat Hijauan Leguminosa Kering (Protein Kasar >22%)',
-    category: 'Hijauan & Karotenoid',
-    target_livestock: ['Ayam Petelur (Layer)', 'Burung Puyuh (Layer/Pedaging)'],
-    estimated_price_per_kg: 2400,
-    availability_status: 'Tersedia',
-    stock_ton: 8.5,
-    lat: -7.9830,
-    lng: 112.631,
-    contact_info: 'Ir. Hendra Kusuma (087812349988) - PT Sinar Agro',
-    is_verified: false, // PENGAJUAN BARU MENUNGGU VERIFIKASI ADMIN!
-    source_type: 'pengajuan_pemasok',
-    last_verified_at: null,
-    created_at: '2026-11-21T09:30:00Z',
-  },
   ...INITIAL_FEED_SOURCES,
 ];
 
@@ -453,7 +228,15 @@ export function loadUsersFromStorage(): UserProfile[] {
       localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(INITIAL_USERS));
       return INITIAL_USERS;
     }
-    const users: UserProfile[] = JSON.parse(raw);
+    let users: UserProfile[] = JSON.parse(raw);
+    // Filter dan buang seluruh user dummy lama
+    users = users.filter(
+      (u) =>
+        u.id !== 'usr-farmer-01' &&
+        u.id !== 'usr-farmer-02' &&
+        u.id !== 'usr-supplier-01' &&
+        u.id !== 'usr-supplier-02'
+    );
     // Sinkronisasi akun admin utama (chusniarin12@gmail.com) agar selalu aktif & terverifikasi
     const adminIndex = users.findIndex(
       (u) => u.email.toLowerCase() === 'chusniarin12@gmail.com' || u.id === 'usr-admin-01'
@@ -490,7 +273,13 @@ export function saveUsersToStorage(users: UserProfile[]) {
 export function getActiveUser(): UserProfile | null {
   const users = loadUsersFromStorage();
   const activeId = getActiveUserId();
-  return users.find((u) => u.id === activeId) || users[0] || null;
+  return (
+    users.find((u) => u.id === activeId) ||
+    users.find((u) => u.role === 'peternak') ||
+    users.find((u) => u.role === 'pemilik_pakan') ||
+    users[0] ||
+    null
+  );
 }
 
 export function registerUser(payload: RegisterPayload): UserProfile {
@@ -594,20 +383,8 @@ export function loadTransactionsFromStorage(): SubscriptionTransaction[] {
       return INITIAL_TRANSACTIONS;
     }
     let txs: SubscriptionTransaction[] = JSON.parse(raw);
-    let changed = false;
-    txs = txs.map((t) => {
-      if (t.notes && t.notes.includes('PetaPakan')) {
-        changed = true;
-        return {
-          ...t,
-          notes: t.notes.replace(/PetaPakan AI/g, 'be-ternak AI').replace(/PetaPakan/g, 'be-ternak'),
-        };
-      }
-      return t;
-    });
-    if (changed) {
-      localStorage.setItem(STORAGE_KEY_TXS, JSON.stringify(txs));
-    }
+    // Hapus seluruh dummy transaksi lama
+    txs = txs.filter((t) => !t.id.startsWith('tx-2026-'));
     return txs;
   } catch {
     return INITIAL_TRANSACTIONS;
@@ -631,7 +408,10 @@ export function loadSavedRansumsFromStorage(): SavedRansum[] {
       localStorage.setItem(STORAGE_KEY_RANSUMS, JSON.stringify(INITIAL_SAVED_RANSUMS));
       return INITIAL_SAVED_RANSUMS;
     }
-    return JSON.parse(raw);
+    let list: SavedRansum[] = JSON.parse(raw);
+    // Hapus seluruh resep pakan dummy lama
+    list = list.filter((r) => r.id !== 'ransum-01' && r.id !== 'ransum-02');
+    return list;
   } catch {
     return INITIAL_SAVED_RANSUMS;
   }
