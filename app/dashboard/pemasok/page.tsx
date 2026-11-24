@@ -17,6 +17,7 @@ import {
   addFeedSourceToStorage,
   DEFAULT_SUPPLIER_PROFILE,
 } from '@/lib/subscription-store';
+import UnverifiedAccountNotice from '@/components/ui/UnverifiedAccountNotice';
 import {
   CheckCircle2,
   CreditCard,
@@ -482,8 +483,29 @@ export default function PemasokDashboardPage() {
         {/* MAIN CONTENT AREA (RIGHT)                                         */}
         {/* ================================================================= */}
         <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 pb-24 lg:pb-8 space-y-6 w-full">
-          {/* Feedback Notice */}
-          {feedbackNotice && (
+          {currentUser && !currentUser.is_verified && activeTab !== 'subscription' ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <span>Portal Pemilik Pakan</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+                <span className="text-emerald-400 font-semibold capitalize">
+                  {activeTab === 'catalog'
+                    ? 'Katalog Bahan Pakan'
+                    : activeTab === 'stats'
+                    ? 'Statistik Penjualan'
+                    : 'Sertifikasi Centang Hijau'}
+                </span>
+              </div>
+              <UnverifiedAccountNotice
+                user={currentUser}
+                featureName="Portal Pemilik Pakan Alternatif"
+                onRefresh={refreshUserData}
+              />
+            </div>
+          ) : (
+            <>
+              {/* Feedback Notice */}
+              {feedbackNotice && (
             <div className="p-4 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 flex items-center justify-between text-xs sm:text-sm font-medium shadow-lg">
               <div className="flex items-center gap-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
@@ -815,6 +837,8 @@ export default function PemasokDashboardPage() {
                 </div>
               </div>
             </div>
+          )}
+          </>
           )}
         </main>
       </div>

@@ -17,6 +17,8 @@ import {
   loadFeedSourcesFromStorage,
   verifyFeedSourceInStorage,
   deleteFeedSourceFromStorage,
+  getActivationUrl,
+  resendActivationLink,
 } from '@/lib/subscription-store';
 import {
   ShieldCheck,
@@ -43,6 +45,8 @@ import {
   Search,
   ExternalLink,
   Trash2,
+  Copy,
+  Send,
 } from 'lucide-react';
 
 type AdminTab = 'overview' | 'verification' | 'users' | 'feeds' | 'reports' | 'payments';
@@ -74,6 +78,9 @@ export default function AdminDashboardPage() {
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [txStatusFilter, setTxStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [feedFilter, setFeedFilter] = useState<'all' | 'pending' | 'verified'>('all');
+  const [pendingUserFilter, setPendingUserFilter] = useState<'all' | 'need_admin' | 'need_email'>('all');
+  const [activationModalData, setActivationModalData] = useState<{ user: UserProfile; activationUrl: string } | null>(null);
+  const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'info'; message: string } | null>(null);
 
@@ -213,18 +220,67 @@ export default function AdminDashboardPage() {
       const loadedUsers = loadUsersFromStorage();
       setUsers([...loadedUsers]);
 
-      setNotification({
-        type: approve ? 'success' : 'info',
-        message: approve
-          ? `Akun "${updated.name}" (${updated.business_name}) berhasil diverifikasi & diaktifkan!`
-          : `Pendaftaran akun "${updated.name}" ditolak / dinonaktifkan.`,
-      });
+      if (approve) {
+        const activationUrl = getActivationUrl(updated);
+        setActivationModalData({
+          user: updated,
+          activationUrl,
+        });
+        setNotification({
+          type: 'success',
+          message: `Verifikasi pendaftaran "${updated.name}" disetujui! Email aktivasi telah dikirim ke ${updated.email}.`,
+        });
+      } else {
+        setNotification({
+          type: 'info',
+          message: `Pendaftaran akun "${updated.name}" ditolak / dinonaktifkan.`,
+        });
+      }
       setTimeout(() => setNotification(null), 5000);
     } catch (err: unknown) {
       alert(`Gagal memproses verifikasi user: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setProcessingId(null);
     }
+  };
+
+  // Handler Kirim Ulang Link Email Aktivasi
+  const handleResendUserActivation = (userId: string) => {
+    setProcessingId(userId);
+    try {
+      const res = resendActivationLink(userId);
+      setUsers([...loadUsersFromStorage()]);
+      setActivationModalData({
+        user: res.user,
+        activationUrl: res.activationUrl,
+      });
+      setNotification({
+        type: 'success',
+        message: `Tautan aktivasi baru berhasil dikirim ulang ke ${res.user.email}!`,
+      });
+      setTimeout(() => setNotification(null), 4000);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // Handler Salin Link Aktivasi
+  const handleCopyActivationUrl = (user: UserProfile) => {
+    const url = typeof window !== 'undefined'
+      ? `${window.location.origin}${getActivationUrl(user)}`
+      : getActivationUrl(user);
+    navigator.clipboard.writeText(url);
+    setCopiedUserId(user.id);
+    setNotification({
+      type: 'success',
+      message: `Tautan aktivasi untuk ${user.name} berhasil disalin!`,
+    });
+    setTimeout(() => {
+      setCopiedUserId(null);
+      setNotification(null);
+    }, 2500);
   };
 
   // Perhitungan Metrik Admin
@@ -235,7 +291,15 @@ export default function AdminDashboardPage() {
   const pendingTxs = transactions.filter((t) => t.status === 'pending');
   const pendingFeeds = feedSources.filter((f) => !f.is_verified);
   const pendingUsers = users.filter((u) => !u.is_verified && u.role !== 'admin');
-  const totalPendingVerification = pendingTxs.length + pendingFeeds.length + pendingUsers.length;
+  const waitingAdminApprovalUsers = pendingUsers.filter((u) => !u.admin_verified);
+  const waitingEmailClickUsers = pendingUsers.filter((u) => u.admin_verified && !u.is_verified);
+  const totalPendingVerification = pendingTxs.length + pendingFeeds.length + waitingAdminApprovalUsers.length;
+
+  const displayedPendingUsers = pendingUsers.filter((u) => {
+    if (pendingUserFilter === 'need_admin') return !u.admin_verified;
+    if (pendingUserFilter === 'need_email') return u.admin_verified && !u.is_verified;
+    return true;
+  });
 
   const totalFarmers = users.filter((u) => u.role === 'peternak');
   const totalSuppliers = users.filter((u) => u.role === 'pemilik_pakan');
@@ -1304,141 +1368,243 @@ export default function AdminDashboardPage() {
                         <span>Antrean Verifikasi Pendaftaran Pengguna Baru</span>
                         {mounted && (
                           <span className="text-xs text-amber-300 font-semibold">
-                            ({pendingUsers.length} Menunggu Persetujuan)
+                            ({pendingUsers.length} Antrean)
                           </span>
                         )}
                       </h2>
                       <p className="text-xs text-slate-400">
-                        Verifikasi akun Peternak Unggas & Pemilik Pakan Alternatif yang mendaftar via email agar berstatus aktif dan mendapatkan lencana centang hijau resmi
+                        Pendaftar baru belum bisa langsung aktif. Setelah disetujui admin, tautan aktivasi akan dikirimkan ke email pendaftar untuk diaktivasi.
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-400">Total Akun Terverifikasi:</span>
-                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
-                        {verifiedUsersCount} Akun
-                      </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-slate-400">Filter Antrean:</span>
+                      <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+                        <button
+                          onClick={() => setPendingUserFilter('all')}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                            pendingUserFilter === 'all'
+                              ? 'bg-emerald-600 text-white shadow-md'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          Semua ({pendingUsers.length})
+                        </button>
+                        <button
+                          onClick={() => setPendingUserFilter('need_admin')}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                            pendingUserFilter === 'need_admin'
+                              ? 'bg-amber-600 text-white shadow-md'
+                              : 'text-slate-400 hover:text-amber-300'
+                          }`}
+                        >
+                          Perlu Verif Admin ({waitingAdminApprovalUsers.length})
+                        </button>
+                        <button
+                          onClick={() => setPendingUserFilter('need_email')}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                            pendingUserFilter === 'need_email'
+                              ? 'bg-cyan-600 text-white shadow-md'
+                              : 'text-slate-400 hover:text-cyan-300'
+                          }`}
+                        >
+                          Menunggu Klik Email ({waitingEmailClickUsers.length})
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  {pendingUsers.length === 0 ? (
+                  {displayedPendingUsers.length === 0 ? (
                     <div className="p-12 text-center rounded-2xl bg-[#0d1613] border border-slate-800">
                       <CheckCircle2 className="w-12 h-12 text-emerald-400/60 mx-auto mb-3" />
-                      <h3 className="text-base font-semibold text-white">Semua Pendaftaran Akun Telah Diverifikasi</h3>
+                      <h3 className="text-base font-semibold text-white">
+                        {pendingUserFilter === 'need_admin'
+                          ? 'Tidak Ada Pendaftaran yang Menunggu Verifikasi Admin'
+                          : pendingUserFilter === 'need_email'
+                          ? 'Tidak Ada Akun yang Sedang Menunggu Klik Link Email'
+                          : 'Semua Pendaftaran Akun Telah Diverifikasi & Diaktivasi'}
+                      </h3>
                       <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                        Tidak ada antrean pendaftaran peternak atau pemilik pakan yang tertunda. Semua akun baru yang mendaftar via email akan otomatis masuk ke sini untuk divalidasi.
+                        Semua akun baru yang mendaftar via email akan otomatis masuk ke sini untuk divalidasi dan dikirimi link aktivasi.
                       </p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-4">
-                      {pendingUsers.map((u) => (
-                        <div
-                          key={u.id}
-                          className="p-5 rounded-2xl border transition-all bg-gradient-to-r from-[#0d1613] to-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-500/5"
-                        >
-                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                            {/* User details */}
-                            <div className="space-y-2">
-                              <div className="flex items-center flex-wrap gap-2">
-                                <span
-                                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                                    u.role === 'peternak'
-                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                                      : 'bg-teal-500/20 text-teal-300 border border-teal-500/40'
-                                  }`}
-                                >
-                                  {u.role === 'peternak' ? 'Peternak Unggas' : 'Pemilik Pakan Alternatif'}
-                                </span>
+                      {displayedPendingUsers.map((u) => {
+                        const isApprovedByAdmin = Boolean(u.admin_verified);
+                        const activationUrl = getActivationUrl(u);
 
-                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse flex items-center gap-1">
-                                  <Clock className="w-3.5 h-3.5" />
-                                  Menunggu Verifikasi Admin
-                                </span>
+                        return (
+                          <div
+                            key={u.id}
+                            className={`p-5 rounded-2xl border transition-all ${
+                              isApprovedByAdmin
+                                ? 'bg-gradient-to-r from-[#0d1613] to-cyan-950/20 border-cyan-500/40 shadow-lg shadow-cyan-500/5'
+                                : 'bg-gradient-to-r from-[#0d1613] to-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-500/5'
+                            }`}
+                          >
+                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                              {/* User details */}
+                              <div className="space-y-2">
+                                <div className="flex items-center flex-wrap gap-2">
+                                  <span
+                                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                      u.role === 'peternak'
+                                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                        : 'bg-teal-500/20 text-teal-300 border border-teal-500/40'
+                                    }`}
+                                  >
+                                    {u.role === 'peternak' ? 'Peternak Unggas' : 'Pemilik Pakan Alternatif'}
+                                  </span>
 
-                                <span className="text-xs text-slate-400 font-mono">
-                                  ID: {u.id}
-                                </span>
-                              </div>
+                                  {isApprovedByAdmin ? (
+                                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1.5">
+                                      <Mail className="w-3.5 h-3.5" />
+                                      Menunggu Klik Link Email (Tautan Terkirim)
+                                    </span>
+                                  ) : (
+                                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse flex items-center gap-1">
+                                      <Clock className="w-3.5 h-3.5" />
+                                      Menunggu Verifikasi Admin
+                                    </span>
+                                  )}
 
-                              <div>
-                                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                                  <span>{u.business_name}</span>
-                                </h3>
-                                <p className="text-xs text-slate-300 mt-0.5">
-                                  Penanggung Jawab / Pemilik: <strong className="text-white">{u.name}</strong>
-                                </p>
-                              </div>
-
-                              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 pt-1">
-                                <div className="flex items-center gap-1.5">
-                                  <Mail className="w-3.5 h-3.5 text-emerald-400" />
-                                  <span className="text-slate-200">{u.email}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  <Phone className="w-3.5 h-3.5 text-slate-400" />
-                                  <span>{u.phone}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  <MapPin className="w-3.5 h-3.5 text-teal-400" />
-                                  <span className="max-w-xs truncate">{u.location_address}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  <Clock className="w-3.5 h-3.5 text-slate-400" />
-                                  <span>
-                                    Terdaftar:{' '}
-                                    {u.created_at
-                                      ? new Date(u.created_at).toLocaleDateString('id-ID', {
-                                          day: 'numeric',
-                                          month: 'short',
-                                          year: 'numeric',
-                                        })
-                                      : 'Baru Saja'}
+                                  <span className="text-xs text-slate-400 font-mono">
+                                    ID: {u.id}
                                   </span>
                                 </div>
+
+                                <div>
+                                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                                    <span>{u.business_name}</span>
+                                  </h3>
+                                  <p className="text-xs text-slate-300 mt-0.5">
+                                    Penanggung Jawab / Pemilik: <strong className="text-white">{u.name}</strong>
+                                  </p>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 pt-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <Mail className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span className="text-slate-200">{u.email}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>{u.phone}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <MapPin className="w-3.5 h-3.5 text-teal-400" />
+                                    <span className="max-w-xs truncate">{u.location_address}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>
+                                      Terdaftar:{' '}
+                                      {u.created_at
+                                        ? new Date(u.created_at).toLocaleDateString('id-ID', {
+                                            day: 'numeric',
+                                            month: 'short',
+                                            year: 'numeric',
+                                          })
+                                        : 'Baru Saja'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Specific Metrics */}
+                                <div className="pt-1 text-xs">
+                                  {u.role === 'peternak' ? (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-950/40 border border-emerald-900/60 text-emerald-300">
+                                      <span>Kapasitas Kandang: <strong>{u.poultry_capacity?.toLocaleString('id-ID') || 0} Ekor</strong></span>
+                                      <span>•</span>
+                                      <span>Komoditas: <strong>{u.livestock_types?.join(', ') || 'Ayam Petelur'}</strong></span>
+                                    </div>
+                                  ) : (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-teal-950/40 border border-teal-900/60 text-teal-300">
+                                      <span>Kapasitas Suplai: <strong>{u.supply_capacity_ton_month || 0} Ton / Bulan</strong></span>
+                                      <span>•</span>
+                                      <span>Bahan Pakan: <strong>{u.feed_materials?.join(', ') || 'Dedak & Limbah Agro'}</strong></span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Info Status Aktivasi Email */}
+                                {isApprovedByAdmin && (
+                                  <div className="mt-2 p-3 rounded-xl bg-cyan-950/40 border border-cyan-800/40 text-xs text-cyan-300 space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+                                      <span className="font-semibold">Admin telah memverifikasi pendaftaran ini.</span>
+                                    </div>
+                                    <p className="text-slate-300 text-[11px] leading-relaxed">
+                                      Email notifikasi & link aktivasi telah dikirim ke <strong className="text-cyan-200">{u.email}</strong>. Akun belum aktif sampai tautan aktivasi diklik oleh pendaftar.
+                                    </p>
+                                  </div>
+                                )}
                               </div>
 
-                              {/* Specific Metrics */}
-                              <div className="pt-1 text-xs">
-                                {u.role === 'peternak' ? (
-                                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-950/40 border border-emerald-900/60 text-emerald-300">
-                                    <span>Kapasitas Kandang: <strong>{u.poultry_capacity?.toLocaleString('id-ID') || 0} Ekor</strong></span>
-                                    <span>•</span>
-                                    <span>Komoditas: <strong>{u.livestock_types?.join(', ') || 'Ayam Petelur'}</strong></span>
+                              {/* Action Buttons */}
+                              <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between gap-2.5 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-800 shrink-0">
+                                {!isApprovedByAdmin ? (
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      disabled={processingId === u.id}
+                                      onClick={() => handleVerifyUser(u.id, true)}
+                                      className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
+                                    >
+                                      <Send className="w-4 h-4" />
+                                      Verifikasi & Kirim Link Email
+                                    </button>
+                                    <button
+                                      disabled={processingId === u.id}
+                                      onClick={() => handleVerifyUser(u.id, false)}
+                                      className="px-3.5 py-2.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 text-xs font-semibold flex items-center gap-1 transition-all disabled:opacity-50 cursor-pointer"
+                                    >
+                                      <X className="w-4 h-4" />
+                                      Tolak
+                                    </button>
                                   </div>
                                 ) : (
-                                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-teal-950/40 border border-teal-900/60 text-teal-300">
-                                    <span>Kapasitas Suplai: <strong>{u.supply_capacity_ton_month || 0} Ton / Bulan</strong></span>
-                                    <span>•</span>
-                                    <span>Bahan Pakan: <strong>{u.feed_materials?.join(', ') || 'Dedak & Limbah Agro'}</strong></span>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                      onClick={() => handleCopyActivationUrl(u)}
+                                      className="px-3 py-2 rounded-xl bg-cyan-950/60 hover:bg-cyan-900 text-cyan-300 border border-cyan-700/50 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                                    >
+                                      <Copy className="w-3.5 h-3.5" />
+                                      <span>{copiedUserId === u.id ? 'Tersalin!' : 'Salin Link'}</span>
+                                    </button>
+                                    <Link
+                                      href={activationUrl}
+                                      target="_blank"
+                                      className="px-3 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold flex items-center gap-1 shadow-md shadow-cyan-500/20 transition-all"
+                                    >
+                                      <span>Buka Link</span>
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                    </Link>
+                                    <button
+                                      disabled={processingId === u.id}
+                                      onClick={() => handleResendUserActivation(u.id)}
+                                      className="px-2.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 text-xs font-medium flex items-center gap-1 transition-all cursor-pointer"
+                                      title="Kirim ulang email aktivasi"
+                                    >
+                                      <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+                                      <span>Kirim Ulang</span>
+                                    </button>
+                                    <button
+                                      disabled={processingId === u.id}
+                                      onClick={() => handleVerifyUser(u.id, false)}
+                                      className="px-2.5 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-900/60 text-xs font-medium flex items-center gap-1 transition-all cursor-pointer"
+                                      title="Batalkan persetujuan verifikasi"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                      <span>Batal</span>
+                                    </button>
                                   </div>
                                 )}
                               </div>
                             </div>
-
-                            {/* Action Buttons */}
-                            <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between gap-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-800 shrink-0">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  disabled={processingId === u.id}
-                                  onClick={() => handleVerifyUser(u.id, true)}
-                                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition-all disabled:opacity-50"
-                                >
-                                  <Check className="w-4 h-4" />
-                                  Verifikasi & Aktifkan Akun
-                                </button>
-                                <button
-                                  disabled={processingId === u.id}
-                                  onClick={() => handleVerifyUser(u.id, false)}
-                                  className="px-3.5 py-2.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 text-xs font-semibold flex items-center gap-1 transition-all disabled:opacity-50"
-                                >
-                                  <X className="w-4 h-4" />
-                                  Tolak
-                                </button>
-                              </div>
-                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1517,11 +1683,17 @@ export default function AdminDashboardPage() {
                           {user.is_verified ? (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3" />
-                              Terverifikasi
+                              Terverifikasi & Aktif
+                            </span>
+                          ) : user.admin_verified ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                              <Mail className="w-3 h-3" />
+                              Menunggu Klik Email
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                              Belum Diverifikasi
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              Menunggu Verif Admin
                             </span>
                           )}
                         </div>
@@ -1530,17 +1702,52 @@ export default function AdminDashboardPage() {
                         <p className="text-xs text-slate-300 font-medium">Pemilik: {user.name}</p>
                       </div>
 
-                      <button
-                        onClick={() => handleToggleUser(user.id)}
-                        title="Klik untuk ubah status verifikasi manual"
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                          user.is_verified
-                            ? 'bg-rose-950/40 text-rose-300 border-rose-800/40 hover:bg-rose-900/60'
-                            : 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-600/40'
-                        }`}
-                      >
-                        {user.is_verified ? 'Cabut Verifikasi' : 'Verifikasi Akun'}
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {user.is_verified ? (
+                          <button
+                            onClick={() => handleToggleUser(user.id)}
+                            title="Klik untuk ubah status verifikasi manual"
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all bg-rose-950/40 text-rose-300 border-rose-800/40 hover:bg-rose-900/60 cursor-pointer"
+                          >
+                            Cabut Verifikasi
+                          </button>
+                        ) : user.admin_verified ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleCopyActivationUrl(user)}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-cyan-950/50 text-cyan-300 border-cyan-500/40 hover:bg-cyan-900/60 flex items-center gap-1 cursor-pointer"
+                              title="Salin link aktivasi email pendaftar"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>{copiedUserId === user.id ? 'Tersalin' : 'Salin'}</span>
+                            </button>
+                            <Link
+                              href={getActivationUrl(user)}
+                              target="_blank"
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-emerald-950/40 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900/60 flex items-center gap-1"
+                              title="Buka link aktivasi"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </Link>
+                            <button
+                              onClick={() => handleVerifyUser(user.id, false)}
+                              className="px-2 py-1.5 rounded-lg text-xs font-semibold border bg-rose-950/40 text-rose-400 border-rose-900/50 hover:bg-rose-900/60 cursor-pointer"
+                              title="Batalkan persetujuan admin"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleVerifyUser(user.id, true)}
+                            title="Setujui pendaftaran dan kirim link email"
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            <span>Verif & Kirim</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="text-xs text-slate-400 space-y-1 pt-2 border-t border-slate-800/80">
@@ -1838,6 +2045,97 @@ export default function AdminDashboardPage() {
           )}
         </main>
       </div>
+
+      {/* Modal Simulasi Email Aktivasi Dikirim */}
+      {activationModalData && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0C1511] border border-cyan-500/50 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl relative text-slate-100 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between gap-4 pb-3 border-b border-[#1E352B]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-400 flex items-center justify-center shrink-0">
+                  <Mail className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>Email Aktivasi Dikirim!</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                      Langkah 2 Selesai
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Pendaftaran telah disetujui. Tautan aktivasi akun telah dibuat.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActivationModalData(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Penerima Email:</span>
+                <span className="font-bold text-cyan-300 font-mono">{activationModalData.user.email}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Nama Pendaftar:</span>
+                <span className="font-semibold text-white">{activationModalData.user.name} ({activationModalData.user.business_name})</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Status Saat Ini:</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Menunggu Klik Link Email
+                </span>
+              </div>
+              <div className="pt-2 border-t border-slate-800/80">
+                <span className="text-slate-400 block mb-1.5 font-semibold">Tautan Aktivasi Resmi:</span>
+                <div className="p-2.5 rounded-xl bg-slate-950 font-mono text-[11px] text-cyan-200 break-all select-all border border-slate-800">
+                  {typeof window !== 'undefined' ? `${window.location.origin}${activationModalData.activationUrl}` : activationModalData.activationUrl}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-900/50 text-[11px] text-cyan-300 flex items-start gap-2">
+              <Sparkles className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+              <span>
+                Sesuai SOP keamanan, akun pendaftar <strong>belum aktif</strong> sampai pendaftar mengeklik tautan aktivasi di atas. Anda dapat menyalin tautan atau membuka langsung untuk simulasi pengujian.
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-2">
+              <button
+                onClick={() => {
+                  const url = typeof window !== 'undefined'
+                    ? `${window.location.origin}${activationModalData.activationUrl}`
+                    : activationModalData.activationUrl;
+                  navigator.clipboard.writeText(url);
+                  setNotification({
+                    type: 'success',
+                    message: 'Tautan aktivasi berhasil disalin ke clipboard!',
+                  });
+                  setTimeout(() => setNotification(null), 3000);
+                }}
+                className="w-full sm:flex-1 py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all"
+              >
+                <Copy className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Salin Tautan Aktivasi</span>
+              </button>
+
+              <Link
+                href={activationModalData.activationUrl}
+                target="_blank"
+                className="w-full sm:flex-1 py-2.5 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 transition-all"
+              >
+                <span>Buka Link (Simulasi)</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

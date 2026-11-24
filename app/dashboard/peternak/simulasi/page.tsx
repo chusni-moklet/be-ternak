@@ -18,6 +18,7 @@ import {
   deleteSimulationScenarioFromStorage,
   DEFAULT_FARMER_PROFILE,
 } from '@/lib/subscription-store';
+import UnverifiedAccountNotice from '@/components/ui/UnverifiedAccountNotice';
 import {
   Calculator,
   TrendingUp,
@@ -713,9 +714,33 @@ export default function LayerSimulationPage() {
         {/* MAIN SIMULATOR CONTENT                                            */}
         {/* ================================================================= */}
         <main className="flex-1 h-full overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 space-y-6 w-full">
-          
-          {/* Breadcrumb & Actions Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {currentUser && !currentUser.is_verified ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <Link
+                  href="/dashboard/peternak"
+                  className="hover:text-emerald-400 transition-colors"
+                >
+                  Portal Peternak
+                </Link>
+                <ChevronRight className="w-3 h-3 text-slate-600" />
+                <span className="text-emerald-400 font-semibold">Simulasi Usaha Layer</span>
+              </div>
+              <UnverifiedAccountNotice
+                user={currentUser}
+                featureName="Simulasi Usaha Layer"
+                onRefresh={() => {
+                  const loaded = loadUsersFromStorage();
+                  const activeId = getActiveUserId();
+                  const activeUser = loaded.find((u) => u.id === activeId);
+                  if (activeUser) setCurrentUser(activeUser);
+                }}
+              />
+            </div>
+          ) : (
+            <>
+              {/* Breadcrumb & Actions Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs text-slate-400">
                 <Link
@@ -1741,6 +1766,8 @@ export default function LayerSimulationPage() {
 
             </div>
           </div>
+          </>
+          )}
         </main>
       </div>
 

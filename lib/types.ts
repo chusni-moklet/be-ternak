@@ -224,6 +224,12 @@ export interface UserProfile {
   is_verified: boolean;
   verified_at?: string | null;
   verified_by?: string | null;
+  admin_verified?: boolean;
+  admin_verified_at?: string | null;
+  admin_verified_by?: string | null;
+  activation_token?: string | null;
+  activation_sent_at?: string | null;
+  email_verified_at?: string | null;
   created_at: string;
 }
 

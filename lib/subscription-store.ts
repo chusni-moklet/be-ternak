@@ -30,6 +30,8 @@ export const INITIAL_USERS: UserProfile[] = [
     subscription_plan: 'free',
     subscription_paid_amount: 0,
     is_verified: true,
+    admin_verified: true,
+    email_verified_at: '2025-01-01T00:00:00Z',
     verified_at: '2025-01-01T00:00:00Z',
     verified_by: 'System Superadmin',
     created_at: '2025-01-01T00:00:00Z',
@@ -53,6 +55,8 @@ export const DEFAULT_FARMER_PROFILE: UserProfile = {
   subscription_plan: 'peternak_starter',
   subscription_paid_amount: 0,
   is_verified: true,
+  admin_verified: true,
+  email_verified_at: '2026-01-01T00:00:00Z',
   verified_at: '2026-01-01T00:00:00Z',
   verified_by: 'System',
   created_at: '2026-01-01T00:00:00Z',
@@ -75,6 +79,8 @@ export const DEFAULT_SUPPLIER_PROFILE: UserProfile = {
   subscription_plan: 'pemasok_umkm',
   subscription_paid_amount: 0,
   is_verified: true,
+  admin_verified: true,
+  email_verified_at: '2026-01-01T00:00:00Z',
   verified_at: '2026-01-01T00:00:00Z',
   verified_by: 'System',
   created_at: '2026-01-01T00:00:00Z',
@@ -315,7 +321,11 @@ export function registerUser(payload: RegisterPayload): UserProfile {
     subscription_plan: payload.role === 'peternak' ? 'peternak_starter' : 'pemasok_umkm',
     subscription_paid_amount: 0,
     subscription_expires_at: null,
-    is_verified: false, // Wajib diverifikasi Admin terlebih dahulu
+    is_verified: false, // BELUM AKTIF: Wajib diverifikasi Admin + diklik link email
+    admin_verified: false, // Menunggu persetujuan Admin
+    activation_token: null,
+    activation_sent_at: null,
+    email_verified_at: null,
     verified_at: null,
     verified_by: null,
     created_at: new Date().toISOString(),
@@ -593,6 +603,7 @@ export function toggleUserVerification(
 
 /**
  * Admin menyetujui / menolak pendaftaran akun pengguna baru
+ * Perhatian: Akun baru BELUM aktif (is_verified = false) sampai pendaftar mengeklik link aktivasi dari email!
  */
 export function verifyUserInStorage(
   userId: string,
@@ -605,20 +616,131 @@ export function verifyUserInStorage(
 
   const user = users[userIndex];
   if (approve) {
-    user.is_verified = true;
-    user.verified_at = new Date().toISOString();
-    user.verified_by = adminName;
-    user.subscription_status = 'active';
-    const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    user.subscription_expires_at = expiry.toISOString();
+    // Admin menyetujui, generate token aktivasi unik untuk dikirim via email
+    const token = 'act-' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    user.admin_verified = true;
+    user.admin_verified_at = new Date().toISOString();
+    user.admin_verified_by = adminName;
+    user.activation_token = token;
+    user.activation_sent_at = new Date().toISOString();
+    user.is_verified = false; // Tetap false hingga pendaftar mengeklik tautan email!
+    user.subscription_status = 'pending_verification';
   } else {
+    user.admin_verified = false;
     user.is_verified = false;
     user.verified_at = null;
     user.verified_by = null;
+    user.activation_token = null;
     user.subscription_status = 'rejected';
   }
 
   users[userIndex] = user;
   saveUsersToStorage(users);
   return user;
+}
+
+/**
+ * Buat atau ambil URL aktivasi email untuk pengguna
+ */
+export function getActivationUrl(user: UserProfile): string {
+  const token = user.activation_token || 'pending';
+  return `/activate?token=${encodeURIComponent(token)}&email=${encodeURIComponent(user.email)}`;
+}
+
+/**
+ * Mengirim ulang / memperbarui token aktivasi email
+ */
+export function resendActivationLink(userId: string): { user: UserProfile; activationUrl: string } {
+  const users = loadUsersFromStorage();
+  const userIndex = users.findIndex((u) => u.id === userId);
+  if (userIndex === -1) throw new Error('Pengguna tidak ditemukan.');
+
+  const user = users[userIndex];
+  if (!user.admin_verified) {
+    throw new Error('Akun ini belum disetujui oleh Administrator.');
+  }
+
+  // Generate token baru
+  user.activation_token = 'act-' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+  user.activation_sent_at = new Date().toISOString();
+
+  users[userIndex] = user;
+  saveUsersToStorage(users);
+
+  return {
+    user,
+    activationUrl: getActivationUrl(user),
+  };
+}
+
+/**
+ * Aktivasi akun setelah pengguna mengeklik tautan yang dikirim melalui email pendaftar
+ */
+export function activateUserByToken(
+  token: string,
+  email?: string
+): { success: boolean; message: string; user?: UserProfile } {
+  const users = loadUsersFromStorage();
+
+  const userIndex = users.findIndex((u) => {
+    if (email && u.email.toLowerCase() !== email.toLowerCase().trim()) return false;
+    return u.activation_token === token;
+  });
+
+  if (userIndex === -1) {
+    // Cek apakah user dengan email tersebut sudah aktif sebelumnya
+    if (email) {
+      const existing = users.find((u) => u.email.toLowerCase() === email.toLowerCase().trim());
+      if (existing && existing.is_verified) {
+        return {
+          success: true,
+          message: 'Akun Anda sudah aktif dan terverifikasi sebelumnya.',
+          user: existing,
+        };
+      }
+    }
+    return {
+      success: false,
+      message: 'Tautan aktivasi tidak valid, telah kedaluwarsa, atau akun belum disetujui Admin.',
+    };
+  }
+
+  const user = users[userIndex];
+
+  if (!user.admin_verified) {
+    return {
+      success: false,
+      message: 'Akun ini belum disetujui oleh Administrator be-ternak.',
+    };
+  }
+
+  if (user.is_verified) {
+    setActiveUserId(user.id);
+    return {
+      success: true,
+      message: 'Akun Anda sudah aktif dan terverifikasi.',
+      user,
+    };
+  }
+
+  // Berhasil diaktivasi melalui link email!
+  const now = new Date();
+  const expiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  user.is_verified = true;
+  user.subscription_status = 'active';
+  user.email_verified_at = now.toISOString();
+  user.verified_at = now.toISOString();
+  user.verified_by = 'Link Verifikasi Email';
+  user.subscription_expires_at = expiry.toISOString();
+
+  users[userIndex] = user;
+  saveUsersToStorage(users);
+  setActiveUserId(user.id);
+
+  return {
+    success: true,
+    message: `Selamat! Akun ${user.name} (${user.business_name}) berhasil diaktivasi dan siap digunakan.`,
+    user,
+  };
 }

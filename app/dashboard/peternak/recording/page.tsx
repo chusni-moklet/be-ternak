@@ -34,6 +34,7 @@ import {
   VISION_SAMPLE_PRESETS,
   VisionSamplePreset,
 } from '@/lib/sample-vision-presets';
+import UnverifiedAccountNotice from '@/components/ui/UnverifiedAccountNotice';
 import {
   ScanEye,
   ClipboardList,
@@ -933,8 +934,32 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
         {/* MAIN DASHBOARD CONTENT AREA                                       */}
         {/* ================================================================= */}
         <main className="flex-1 overflow-y-auto bg-[#060D0A] p-4 lg:p-6 space-y-6">
-          {/* Breadcrumb & Header Action Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1E352B]">
+          {currentUser && !currentUser.is_verified ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
+                <Link href="/dashboard/peternak" className="hover:text-emerald-400">
+                  Portal Peternak
+                </Link>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+                <span className="text-emerald-400 font-semibold">
+                  {activeTab === 'recording' ? 'Recording Harian Layer' : 'AI Health Vision Scan'}
+                </span>
+              </div>
+              <UnverifiedAccountNotice
+                user={currentUser}
+                featureName={activeTab === 'recording' ? 'Recording Harian Layer' : 'AI Health Vision Scan'}
+                onRefresh={() => {
+                  const loaded = loadUsersFromStorage();
+                  const activeId = getActiveUserId();
+                  const activeUser = loaded.find((u) => u.id === activeId);
+                  if (activeUser) setCurrentUser(activeUser);
+                }}
+              />
+            </div>
+          ) : (
+            <>
+              {/* Breadcrumb & Header Action Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1E352B]">
             <div>
               <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
                 <Link href="/dashboard/peternak" className="hover:text-emerald-400">
@@ -2267,6 +2292,8 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
                 </div>
               </div>
             </div>
+          )}
+          </>
           )}
         </main>
       </div>
