@@ -40,6 +40,7 @@ import {
   CheckCircle2,
   Info,
   Zap,
+  ClipboardList,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -522,6 +523,14 @@ export default function LayerSimulationPage() {
           badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold',
           href: '/dashboard/peternak/simulasi',
           active: true,
+        },
+        {
+          id: 'recording',
+          label: 'Recording Harian',
+          icon: ClipboardList,
+          badge: 'Harian',
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold',
+          href: '/dashboard/peternak/recording',
         },
       ],
     },

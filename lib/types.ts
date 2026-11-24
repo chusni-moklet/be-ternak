@@ -320,3 +320,69 @@ export interface LayerSimulationScenario {
   };
 }
 
+// ============================================================================
+// Multi-Kandang & Daily Recording Types
+// ============================================================================
+
+export type KandangHouseType = 'Open House' | 'Semi-Closed' | 'Closed House';
+
+export interface KandangUnit {
+  id: string;
+  user_id: string;
+  name: string;
+  house_type: KandangHouseType;
+  strain: string;
+  initial_population: number;
+  current_population: number;
+  chick_in_date: string;
+  age_weeks: number;
+  created_at: string;
+}
+
+export interface DailyRecordingLog {
+  id: string;
+  user_id: string;
+  kandang_id: string;
+  kandang_name: string;
+  date: string; // YYYY-MM-DD
+  dead_count: number;
+  cull_count: number;
+  final_population: number;
+  intact_egg_kg: number;
+  intact_egg_count: number;
+  avg_egg_weight_gram: number;
+  broken_egg_kg: number;
+  hdp_percent: number;
+  feed_kg: number;
+  feed_type: string;
+  feed_intake_gram: number;
+  fcr: number;
+  condition_note: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface CreateKandangPayload {
+  name: string;
+  house_type: KandangHouseType;
+  strain: string;
+  initial_population: number;
+  chick_in_date: string;
+  age_weeks: number;
+}
+
+export interface CreateRecordingPayload {
+  kandang_id: string;
+  date: string;
+  dead_count: number;
+  cull_count: number;
+  intact_egg_kg: number;
+  intact_egg_count: number;
+  broken_egg_kg: number;
+  feed_kg: number;
+  feed_type: string;
+  condition_note: string;
+  notes?: string;
+}
+
+
