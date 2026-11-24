@@ -153,7 +153,7 @@ function LoginRegisterContent() {
 
   return (
     <div className="min-h-screen bg-[#060d0a] text-slate-100 flex flex-col font-sans">
-      <Navbar currentRegionName="Autentikasi Akun" />
+      <Navbar currentRegionName="Autentikasi Akun" hideNavLinks={true} />
 
       <main className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 relative overflow-hidden">
         {/* Subtle background glow */}
