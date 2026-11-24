@@ -189,6 +189,31 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
         setTargetKandangToDelete(loadedUnits[0].id);
       }
     }
+
+    // Cek jika ada hasil AI Health Scan yang ditransfer dari halaman /dashboard/peternak/health-scan
+    try {
+      const pendingCond = localStorage.getItem('petapakan_pending_ai_condition');
+      const pendingNote = localStorage.getItem('petapakan_pending_ai_note');
+      if (pendingCond) {
+        setRecordCondition(pendingCond);
+        localStorage.removeItem('petapakan_pending_ai_condition');
+      }
+      if (pendingNote) {
+        setRecordNotes(pendingNote);
+        localStorage.removeItem('petapakan_pending_ai_note');
+        setFeedbackNotice({
+          type: 'success',
+          message: '✓ Hasil diagnosis AI berhasil dimuat ke Form Recording Harian!',
+        });
+        setTimeout(() => setFeedbackNotice(null), 4000);
+        setTimeout(() => {
+          const formElem = document.getElementById('form-recording-harian');
+          if (formElem) {
+            formElem.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 300);
+      }
+    } catch {}
   }, []);
 
   // Helper Switcher Akun Demo
@@ -522,7 +547,16 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
     const aiNote = `[AI Vision Groq]: ${scanResult.status_kondisi} (${scanResult.tingkat_risiko}) - Gejala: ${scanResult.dugaan_gejala}. Tindakan: ${scanResult.rekomendasi_tindakan}`;
     setRecordNotes(aiNote);
 
-    // Switch ke tab recording agar user langsung melihat form
+    try {
+      localStorage.setItem('petapakan_pending_ai_condition', matchedCondition);
+      localStorage.setItem('petapakan_pending_ai_note', aiNote);
+    } catch {}
+
+    if (initialTab === 'health') {
+      window.location.href = '/dashboard/peternak/recording';
+      return;
+    }
+
     setActiveTab('recording');
 
     setFeedbackNotice({
@@ -711,20 +745,18 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
         {
           label: 'Recording Harian',
           icon: ClipboardList,
-          active: activeTab === 'recording',
+          active: initialTab === 'recording',
           badge: 'Harian',
           badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold',
           href: '/dashboard/peternak/recording',
-          onClick: () => setActiveTab('recording'),
         },
         {
           label: 'AI Health Scan',
           icon: ScanEye,
-          active: activeTab === 'health',
+          active: initialTab === 'health',
           badge: 'AI Vision',
           badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold',
           href: '/dashboard/peternak/health-scan',
-          onClick: () => setActiveTab('health'),
         },
       ],
     },
@@ -1020,64 +1052,7 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
             </div>
           </div>
 
-          {/* ================================================================= */}
-          {/* PROMINENT TOP TAB SWITCHER (SPLIT MENU PENUH TANPA SCROLL)        */}
-          {/* ================================================================= */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-1.5 rounded-2xl bg-[#0A1410] border border-[#1E352B]">
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => setActiveTab('recording')}
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'recording'
-                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                    : 'text-slate-400 hover:text-white hover:bg-[#12241b]'
-                }`}
-              >
-                <ClipboardList className="w-4 h-4" />
-                <span>1. Recording Harian & Analitik</span>
-                <span
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                    activeTab === 'recording'
-                      ? 'bg-slate-950/20 text-slate-950'
-                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                  }`}
-                >
-                  Harian
-                </span>
-              </button>
 
-              <button
-                type="button"
-                onClick={() => setActiveTab('health')}
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'health'
-                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                    : 'text-slate-400 hover:text-white hover:bg-[#12241b]'
-                }`}
-              >
-                <ScanEye className="w-4 h-4" />
-                <span>2. AI Health Vision Scanner</span>
-                <span
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                    activeTab === 'health'
-                      ? 'bg-slate-950/20 text-slate-950'
-                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                  }`}
-                >
-                  Groq Multimodal
-                </span>
-              </button>
-            </div>
-
-            <div className="text-[11px] text-slate-400 px-3 hidden md:block">
-              {activeTab === 'recording' ? (
-                <span>Form pencatatan langsung tampil di bawah tanpa perlu scroll</span>
-              ) : (
-                <span>Diagnosis visual ayam & kotoran dengan AI Veteriner</span>
-              )}
-            </div>
-          </div>
 
           {/* Feedback Banner Notification */}
           {feedbackNotice && (
@@ -1308,14 +1283,13 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
                     </span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('health')}
+                <Link
+                  href="/dashboard/peternak/health-scan"
                   className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 border border-emerald-500/40 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <span>Buka AI Health Scanner</span>
                   <ChevronRight className="w-4 h-4" />
-                </button>
+                </Link>
               </div>
 
               {/* SECTION: FORM INPUT RECORDING & GRAFIK (2 KOLOM LANGSUNG TERLIHAT) */}
