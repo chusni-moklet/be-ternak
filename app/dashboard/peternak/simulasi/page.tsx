@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useMemo, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/ui/Navbar';
 import {
@@ -58,18 +58,12 @@ import {
 
 export default function LayerSimulationPage() {
   // 1. Data User & Context
-  const [users] = useState<UserProfile[]>(() => loadUsersFromStorage());
+  const [users, setUsers] = useState<UserProfile[]>(() => loadUsersFromStorage());
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     const loaded = loadUsersFromStorage();
-    const activeId = getActiveUserId();
-    return (
-      loaded.find((u) => u.id === activeId) ||
-      loaded.find((u) => u.role === 'peternak') ||
-      loaded[1] ||
-      null
-    );
+    return loaded.find((u) => u.role === 'peternak') || loaded[1] || null;
   });
-  const [savedRansums] = useState<SavedRansum[]>(() => loadSavedRansumsFromStorage());
+  const [savedRansums, setSavedRansums] = useState<SavedRansum[]>(() => loadSavedRansumsFromStorage());
   const [scenarios, setScenarios] = useState<LayerSimulationScenario[]>(() =>
     loadSimulationScenariosFromStorage()
   );
@@ -83,6 +77,19 @@ export default function LayerSimulationPage() {
     () => true,
     () => false
   );
+
+  useEffect(() => {
+    const loaded = loadUsersFromStorage();
+    setUsers(loaded);
+    const activeId = getActiveUserId();
+    const activeUser = loaded.find((u) => u.id === activeId);
+    if (activeUser && activeUser.role === 'peternak') {
+      setCurrentUser(activeUser);
+      if (activeUser.poultry_capacity) {
+        setPopulasiAwal(activeUser.poultry_capacity);
+      }
+    }
+  }, []);
 
   // 2. State Input Parameter Simulator
   const [populasiAwal, setPopulasiAwal] = useState<number>(() => currentUser?.poultry_capacity || 5000);
@@ -579,8 +586,11 @@ export default function LayerSimulationPage() {
           <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
             Simulasi Layer
           </span>
-          <span className="text-xs font-bold text-white truncate max-w-[120px]">
-            {currentUser.name}
+          <span
+            suppressHydrationWarning
+            className="text-xs font-bold text-white truncate max-w-[120px]"
+          >
+            {currentUser?.name}
           </span>
         </div>
       </div>
@@ -607,14 +617,16 @@ export default function LayerSimulationPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <h2 className="text-xs font-bold text-white truncate">{currentUser.name}</h2>
+                  <h2 suppressHydrationWarning className="text-xs font-bold text-white truncate">
+                    {currentUser?.name}
+                  </h2>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 </div>
-                <p className="text-[10px] text-emerald-300 font-semibold truncate">
-                  {currentUser.business_name}
+                <p suppressHydrationWarning className="text-[10px] text-emerald-300 font-semibold truncate">
+                  {currentUser?.business_name}
                 </p>
-                <p className="text-[9px] text-slate-400 truncate">
-                  Populasi: {(currentUser.poultry_capacity || 5000).toLocaleString('id-ID')} Ekor Layer
+                <p suppressHydrationWarning className="text-[9px] text-slate-400 truncate">
+                  Populasi: {(currentUser?.poultry_capacity || 5000).toLocaleString('id-ID')} Ekor Layer
                 </p>
               </div>
             </div>

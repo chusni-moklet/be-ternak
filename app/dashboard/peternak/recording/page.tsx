@@ -73,16 +73,10 @@ import {
 
 export default function DailyRecordingPage() {
   // 1. Data User & Akun Aktif
-  const [users] = useState<UserProfile[]>(() => loadUsersFromStorage());
+  const [users, setUsers] = useState<UserProfile[]>(() => loadUsersFromStorage());
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     const loaded = loadUsersFromStorage();
-    const activeId = getActiveUserId();
-    return (
-      loaded.find((u) => u.id === activeId) ||
-      loaded.find((u) => u.role === 'peternak') ||
-      loaded[1] ||
-      null
-    );
+    return loaded.find((u) => u.role === 'peternak') || loaded[1] || null;
   });
 
   // Client mounted flag
@@ -142,21 +136,32 @@ export default function DailyRecordingPage() {
       setRecordDate(today);
       setNewKandangDate(today);
     } catch {}
-    if (!currentUser) return;
-    const loadedUnits = loadKandangUnits(currentUser.id);
-    const loadedLogs = loadDailyRecordings(currentUser.id);
-    const loadedRansums = loadSavedRansumsFromStorage();
 
-    setKandangs(loadedUnits);
-    setRecordings(loadedLogs);
-    setSavedRansums(loadedRansums);
+    const loadedUsers = loadUsersFromStorage();
+    setUsers(loadedUsers);
+    const activeId = getActiveUserId();
+    const activeUser = loadedUsers.find((u) => u.id === activeId);
+    const userToUse =
+      activeUser && activeUser.role === 'peternak'
+        ? activeUser
+        : loadedUsers.find((u) => u.role === 'peternak') || loadedUsers[1] || null;
 
-    // Default target kandang input
-    if (loadedUnits.length > 0) {
-      setRecordKandangId(loadedUnits[0].id);
-      setTargetKandangToDelete(loadedUnits[0].id);
+    if (userToUse) {
+      setCurrentUser(userToUse);
+      const loadedUnits = loadKandangUnits(userToUse.id);
+      const loadedLogs = loadDailyRecordings(userToUse.id);
+      const loadedRansums = loadSavedRansumsFromStorage();
+
+      setKandangs(loadedUnits);
+      setRecordings(loadedLogs);
+      setSavedRansums(loadedRansums);
+
+      if (loadedUnits.length > 0) {
+        setRecordKandangId(loadedUnits[0].id);
+        setTargetKandangToDelete(loadedUnits[0].id);
+      }
     }
-  }, [currentUser]);
+  }, []);
 
   // Helper Switcher Akun Demo
   const handleSelectFarmer = (userId: string) => {
@@ -612,8 +617,11 @@ export default function DailyRecordingPage() {
           <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
             Recording Layer
           </span>
-          <span className="text-xs font-bold text-white truncate max-w-[130px]">
-            {currentUser.name}
+          <span
+            suppressHydrationWarning
+            className="text-xs font-bold text-white truncate max-w-[130px]"
+          >
+            {currentUser?.name}
           </span>
         </div>
       </div>
@@ -640,14 +648,16 @@ export default function DailyRecordingPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <h2 className="text-xs font-bold text-white truncate">{currentUser.name}</h2>
+                  <h2 suppressHydrationWarning className="text-xs font-bold text-white truncate">
+                    {currentUser?.name}
+                  </h2>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 </div>
-                <p className="text-[10px] text-emerald-300 font-semibold truncate">
-                  {currentUser.business_name}
+                <p suppressHydrationWarning className="text-[10px] text-emerald-300 font-semibold truncate">
+                  {currentUser?.business_name}
                 </p>
-                <p className="text-[9px] text-slate-400 truncate">
-                  Populasi: {(currentUser.poultry_capacity || 5000).toLocaleString('id-ID')} Ekor Layer
+                <p suppressHydrationWarning className="text-[9px] text-slate-400 truncate">
+                  Populasi: {(currentUser?.poultry_capacity || 5000).toLocaleString('id-ID')} Ekor Layer
                 </p>
               </div>
             </div>

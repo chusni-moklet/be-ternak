@@ -45,19 +45,19 @@ export default function PeternakDashboardPage() {
   const [users, setUsers] = useState<UserProfile[]>(() => loadUsersFromStorage());
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     const loaded = loadUsersFromStorage();
-    const activeId = getActiveUserId();
-    return (
-      loaded.find((u) => u.id === activeId) ||
-      loaded.find((u) => u.role === 'peternak') ||
-      loaded[1] ||
-      null
-    );
+    return loaded.find((u) => u.role === 'peternak') || loaded[1] || null;
   });
   const [savedRansums, setSavedRansums] = useState<SavedRansum[]>(() => loadSavedRansumsFromStorage());
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    const loaded = loadUsersFromStorage();
+    const activeId = getActiveUserId();
+    const activeUser = loaded.find((u) => u.id === activeId);
+    if (activeUser && activeUser.role === 'peternak') {
+      setCurrentUser(activeUser);
+    }
   }, []);
 
   // Side Menu State
@@ -259,8 +259,11 @@ export default function PeternakDashboardPage() {
               ⏳ Menunggu Verifikasi
             </span>
           )}
-          <span className="text-xs font-bold text-white truncate max-w-[120px]">
-            {currentUser.name}
+          <span
+            suppressHydrationWarning
+            className="text-xs font-bold text-white truncate max-w-[120px]"
+          >
+            {currentUser?.name}
           </span>
         </div>
       </div>
@@ -287,14 +290,16 @@ export default function PeternakDashboardPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <h2 className="text-xs font-bold text-white truncate">{currentUser.name}</h2>
+                  <h2 suppressHydrationWarning className="text-xs font-bold text-white truncate">
+                    {currentUser?.name}
+                  </h2>
                   <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse shrink-0" />
                 </div>
-                <p className="text-[10px] text-teal-300 font-semibold truncate">
-                  {currentUser.business_name}
+                <p suppressHydrationWarning className="text-[10px] text-teal-300 font-semibold truncate">
+                  {currentUser?.business_name}
                 </p>
-                <p className="text-[9px] text-slate-400 truncate">
-                  {currentUser.livestock_types?.join(', ') || 'Ayam Unggas'}
+                <p suppressHydrationWarning className="text-[9px] text-slate-400 truncate">
+                  {currentUser?.livestock_types?.join(', ') || 'Ayam Unggas'}
                 </p>
               </div>
             </div>
