@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useMemo, useSyncExternalStore, useRef } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/ui/Navbar';
 import {
@@ -11,8 +11,10 @@ import {
   CreateRecordingPayload,
   KandangHouseType,
   SavedRansum,
+  HealthScanResult,
 } from '@/lib/types';
 import {
+  INITIAL_USERS,
   loadUsersFromStorage,
   getActiveUserId,
   setActiveUserId,
@@ -28,6 +30,11 @@ import {
   exportRecordingsToCsv,
 } from '@/lib/recording-store';
 import {
+  VISION_SAMPLE_PRESETS,
+  VisionSamplePreset,
+} from '@/lib/sample-vision-presets';
+import {
+  ScanEye,
   ClipboardList,
   CalendarCheck,
   Plus,
@@ -57,6 +64,13 @@ import {
   Calendar,
   Clock,
   ArrowUpDown,
+  Camera,
+  Upload,
+  RefreshCw,
+  Stethoscope,
+  Check,
+  Eye,
+  FileText,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -72,12 +86,10 @@ import {
 } from 'recharts';
 
 export default function DailyRecordingPage() {
-  // 1. Data User & Akun Aktif
-  const [users, setUsers] = useState<UserProfile[]>(() => loadUsersFromStorage());
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    const loaded = loadUsersFromStorage();
-    return loaded.find((u) => u.role === 'peternak') || loaded[1] || null;
-  });
+  // 1. Data User & Akun Aktif (Inisialisasi seragam untuk mencegah hydration mismatch)
+  const defaultFarmer = INITIAL_USERS.find((u) => u.role === 'peternak') || INITIAL_USERS[1];
+  const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
+  const [currentUser, setCurrentUser] = useState<UserProfile>(defaultFarmer);
 
   // Client mounted flag
   const isMounted = useSyncExternalStore(
@@ -126,10 +138,19 @@ export default function DailyRecordingPage() {
   const [recordNotes, setRecordNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 5. State AI Health Vision Scanner
+  const [scanImageBase64, setScanImageBase64] = useState<string | null>(null);
+  const [scanImagePreview, setScanImagePreview] = useState<string | null>(null);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [scanResult, setScanResult] = useState<HealthScanResult | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Table filter query
   const [searchTableQuery, setSearchTableQuery] = useState('');
 
-  // 5. Inisialisasi Data berdasarkan Akun Peternak
+  // 6. Inisialisasi Data berdasarkan Akun Peternak
   useEffect(() => {
     try {
       const today = new Date().toISOString().split('T')[0];
@@ -144,7 +165,7 @@ export default function DailyRecordingPage() {
     const userToUse =
       activeUser && activeUser.role === 'peternak'
         ? activeUser
-        : loadedUsers.find((u) => u.role === 'peternak') || loadedUsers[1] || null;
+        : loadedUsers.find((u) => u.role === 'peternak') || defaultFarmer;
 
     if (userToUse) {
       setCurrentUser(userToUse);
@@ -179,53 +200,49 @@ export default function DailyRecordingPage() {
     if (loadedUnits.length > 0) {
       setRecordKandangId(loadedUnits[0].id);
       setTargetKandangToDelete(loadedUnits[0].id);
+    } else {
+      setRecordKandangId('');
+      setTargetKandangToDelete('');
     }
 
     setFeedbackNotice({
       type: 'info',
-      message: `Beralih ke akun ${target.name} (${target.business_name})`,
+      message: `Beralih ke profil peternak: ${target.name} (${target.business_name})`,
     });
     setTimeout(() => setFeedbackNotice(null), 3000);
   };
 
-  // Kandang Aktif terpilih untuk info live di Form Input
-  const activeInputKandang = useMemo(() => {
-    return kandangs.find((k) => k.id === recordKandangId) || kandangs[0];
-  }, [kandangs, recordKandangId]);
-
-  // Live Calculations pada Form Input
-  const liveFormPreview = useMemo(() => {
-    if (!activeInputKandang) {
-      return { finalPop: 0, hdp: 0, intake: 0, fcr: 0 };
-    }
-    const currentPop = activeInputKandang.current_population || activeInputKandang.initial_population;
-    const finalPop = Math.max(0, currentPop - (Number(recordDead) || 0) - (Number(recordCull) || 0));
-    const hdp = finalPop > 0 ? Number(((Number(recordEggCount) / finalPop) * 100).toFixed(1)) : 0;
-    const intake = finalPop > 0 ? Number(((Number(recordFeedKg) * 1000) / finalPop).toFixed(1)) : 0;
-    const totalEgg = Number(recordEggKg) + Number(recordBrokenKg);
-    const fcr = totalEgg > 0 ? Number((Number(recordFeedKg) / totalEgg).toFixed(2)) : 0;
-
-    return { finalPop, hdp, intake, fcr };
-  }, [activeInputKandang, recordDead, recordCull, recordEggCount, recordFeedKg, recordEggKg, recordBrokenKg]);
-
-  // Auto-sync Egg Kg & Egg Count (~62.5g/butir)
+  // Live Auto-Calculate Jumlah Butir dari Kg Telur (~62.5 gr per butir)
   const handleEggKgChange = (val: number) => {
     setRecordEggKg(val);
     if (val > 0) {
-      const estimatedCount = Math.round((val * 1000) / 62.5);
-      setRecordEggCount(estimatedCount);
+      const estCount = Math.round((val * 1000) / 62.5);
+      setRecordEggCount(estCount);
     }
   };
 
-  const handleEggCountChange = (val: number) => {
-    setRecordEggCount(val);
-    if (val > 0) {
-      const estimatedKg = Number(((val * 62.5) / 1000).toFixed(1));
-      setRecordEggKg(estimatedKg);
-    }
-  };
+  // Filtered kandangs sesuai akun
+  const userKandangs = useMemo(() => {
+    return kandangs.filter((k) => k.user_id === currentUser.id);
+  }, [kandangs, currentUser]);
 
-  // Filtered recordings sesuai dropdown unit kandang
+  // Current selected kandang unit for live form input
+  const activeFormKandang = useMemo(() => {
+    return userKandangs.find((k) => k.id === recordKandangId) || userKandangs[0] || null;
+  }, [userKandangs, recordKandangId]);
+
+  // Live preview metrics di form recording
+  const formPreview = useMemo(() => {
+    const pop = activeFormKandang?.current_population || 2500;
+    const effectivePop = Math.max(1, pop - (Number(recordDead) || 0) - (Number(recordCull) || 0));
+    const hdp = Number(effectivePop > 0 ? (((Number(recordEggCount) || 0) / effectivePop) * 100).toFixed(1) : 0);
+    const feedIntake = Number(effectivePop > 0 ? (((Number(recordFeedKg) || 0) * 1000) / effectivePop).toFixed(1) : 0);
+    const fcr = Number(Number(recordEggKg) > 0 ? ((Number(recordFeedKg) || 0) / Number(recordEggKg)).toFixed(2) : 0);
+
+    return { effectivePop, hdp, feedIntake, fcr };
+  }, [activeFormKandang, recordDead, recordCull, recordEggCount, recordFeedKg, recordEggKg]);
+
+  // Filtered recordings sesuai pilihan unit kandang & pencarian
   const filteredRecordings = useMemo(() => {
     let list = recordings;
     if (selectedKandangId !== 'all') {
@@ -241,16 +258,10 @@ export default function DailyRecordingPage() {
           r.feed_type.toLowerCase().includes(q)
       );
     }
-    // Urutkan dari tanggal terbaru ke terlama untuk tampilan tabel
     return [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [recordings, selectedKandangId, searchTableQuery]);
 
-  // Filtered kandangs sesuai akun
-  const userKandangs = useMemo(() => {
-    return kandangs.filter((k) => k.user_id === currentUser?.id);
-  }, [kandangs, currentUser]);
-
-  // 6. Kalkulasi 4 KPI Utama
+  // 7. Kalkulasi 4 KPI Utama
   const kpiData = useMemo(() => {
     const activeUnits =
       selectedKandangId === 'all'
@@ -259,113 +270,281 @@ export default function DailyRecordingPage() {
 
     const initialPopTotal = activeUnits.reduce((acc, k) => acc + k.initial_population, 0);
     const currentPopTotal = activeUnits.reduce((acc, k) => acc + (k.current_population || k.initial_population), 0);
+    const survivalRate = initialPopTotal > 0 ? (currentPopTotal / initialPopTotal) * 100 : 100;
 
-    const dayaHidupPercent =
-      initialPopTotal > 0 ? Number(((currentPopTotal / initialPopTotal) * 100).toFixed(1)) : 100;
-
-    // Ambil log yang relevan
+    // Filter log recording untuk unit kandang aktif
     const relevantLogs =
       selectedKandangId === 'all'
         ? recordings
         : recordings.filter((r) => r.kandang_id === selectedKandangId);
 
-    // Total deplesi kumulatif dari log
-    const totalDead = relevantLogs.reduce((acc, r) => acc + r.dead_count, 0);
-    const totalCull = relevantLogs.reduce((acc, r) => acc + r.cull_count, 0);
-    const totalDeplesi = totalDead + totalCull;
-    const deplesiPercent =
-      initialPopTotal > 0 ? Number(((totalDeplesi / initialPopTotal) * 100).toFixed(2)) : 0;
-
-    // Log terbaru (untuk data produksi telur hari ini)
-    // Kelompokkan per tanggal terbaru
-    const dates = Array.from(new Set(relevantLogs.map((r) => r.date))).sort(
-      (a, b) => new Date(b).getTime() - new Date(a).getTime()
+    // Ambil log hari terakhir untuk snapshot harian
+    const latestLogsByKandang = new Map<string, DailyRecordingLog>();
+    const sortedChronological = [...relevantLogs].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
-    const latestDate = dates[0];
+    sortedChronological.forEach((log) => {
+      latestLogsByKandang.set(log.kandang_id, log);
+    });
 
-    const latestLogs = relevantLogs.filter((r) => r.date === latestDate);
-    const latestEggKg = latestLogs.reduce((acc, r) => acc + r.intact_egg_kg, 0);
-    const latestEggCount = latestLogs.reduce((acc, r) => acc + r.intact_egg_count, 0);
-    const latestBrokenKg = latestLogs.reduce((acc, r) => acc + r.broken_egg_kg, 0);
-    const latestFeedKg = latestLogs.reduce((acc, r) => acc + r.feed_kg, 0);
+    let todayEggKg = 0;
+    let todayEggCount = 0;
+    let todayFeedKg = 0;
+    let todayBrokenKg = 0;
+    let totalDeadAccum = 0;
+    let totalCullAccum = 0;
 
-    const latestPop = latestLogs.reduce((acc, r) => acc + r.final_population, 0);
-    const latestHdp = latestPop > 0 ? Number(((latestEggCount / latestPop) * 100).toFixed(1)) : 0;
-    const latestFeedIntake = latestPop > 0 ? Number(((latestFeedKg * 1000) / latestPop).toFixed(1)) : 0;
-    const latestTotalEgg = latestEggKg + latestBrokenKg;
-    const latestFcr = latestTotalEgg > 0 ? Number((latestFeedKg / latestTotalEgg).toFixed(2)) : 0;
-    const avgEggWeight = latestEggCount > 0 ? Number(((latestEggKg * 1000) / latestEggCount).toFixed(1)) : 62.5;
+    relevantLogs.forEach((l) => {
+      totalDeadAccum += l.dead_count;
+      totalCullAccum += l.cull_count;
+    });
 
-    // Telur retak kumulatif
-    const totalBrokenKg = relevantLogs.reduce((acc, r) => acc + r.broken_egg_kg, 0);
-    const totalIntactKg = relevantLogs.reduce((acc, r) => acc + r.intact_egg_kg, 0);
-    const totalEggAll = totalBrokenKg + totalIntactKg;
-    const brokenPercent = totalEggAll > 0 ? Number(((totalBrokenKg / totalEggAll) * 100).toFixed(2)) : 0;
+    latestLogsByKandang.forEach((l) => {
+      todayEggKg += l.intact_egg_kg;
+      todayEggCount += l.intact_egg_count;
+      todayFeedKg += l.feed_kg;
+      todayBrokenKg += l.broken_egg_kg;
+    });
+
+    // Rata-rata bobot telur
+    const avgEggWeight = todayEggCount > 0 ? (todayEggKg * 1000) / todayEggCount : 62.5;
+
+    // HDP Hari ini
+    const todayHdp = currentPopTotal > 0 ? (todayEggCount / currentPopTotal) * 100 : 0;
+
+    // Feed Intake per ekor
+    const feedIntakeGram = currentPopTotal > 0 ? (todayFeedKg * 1000) / currentPopTotal : 0;
+
+    // FCR Hari ini
+    const fcr = todayEggKg > 0 ? todayFeedKg / todayEggKg : 2.05;
+
+    // Status Efisiensi FCR
+    let fcrStatus: 'Sangat Efisien' | 'Normal' | 'Boros Pakan' = 'Normal';
+    let fcrBadgeColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+    if (fcr <= 2.10) {
+      fcrStatus = 'Sangat Efisien';
+      fcrBadgeColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+    } else if (fcr <= 2.30) {
+      fcrStatus = 'Normal';
+      fcrBadgeColor = 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+    } else {
+      fcrStatus = 'Boros Pakan';
+      fcrBadgeColor = 'bg-rose-500/20 text-rose-300 border-rose-500/30';
+    }
+
+    // Persentase Deplesi Total
+    const deplesiRate = initialPopTotal > 0 ? ((totalDeadAccum + totalCullAccum) / initialPopTotal) * 100 : 0;
+    const brokenRate = (todayEggKg + todayBrokenKg) > 0 ? (todayBrokenKg / (todayEggKg + todayBrokenKg)) * 100 : 0;
 
     return {
-      currentPopTotal,
       initialPopTotal,
-      dayaHidupPercent,
-      totalDead,
-      totalCull,
-      totalDeplesi,
-      deplesiPercent,
-      latestDate: latestDate || '2026-11-24',
-      latestEggKg: Number(latestEggKg.toFixed(1)),
-      latestEggCount,
-      latestBrokenKg: Number(latestBrokenKg.toFixed(1)),
-      latestFeedKg: Number(latestFeedKg.toFixed(1)),
-      latestHdp,
-      latestFeedIntake,
-      latestFcr,
+      currentPopTotal,
+      survivalRate,
+      todayEggKg,
+      todayEggCount,
       avgEggWeight,
-      totalBrokenKg: Number(totalBrokenKg.toFixed(1)),
-      brokenPercent,
+      todayHdp,
+      todayFeedKg,
+      feedIntakeGram,
+      fcr,
+      fcrStatus,
+      fcrBadgeColor,
+      totalDeadAccum,
+      totalCullAccum,
+      deplesiRate,
+      todayBrokenKg,
+      brokenRate,
     };
-  }, [selectedKandangId, userKandangs, recordings]);
+  }, [userKandangs, recordings, selectedKandangId]);
 
-  // 7. Data Grafik Tren 10 Hari Terakhir
-  const chartData = useMemo(() => {
-    const relevantLogs =
+  // 8. Grafik Tren HDP & Target Breeder (88-92%)
+  const chartHdpData = useMemo(() => {
+    const logs =
       selectedKandangId === 'all'
         ? recordings
         : recordings.filter((r) => r.kandang_id === selectedKandangId);
 
-    // Ambil tanggal unik terurut dari lama ke baru
-    const dates = Array.from(new Set(relevantLogs.map((r) => r.date))).sort(
-      (a, b) => new Date(a).getTime() - new Date(b).getTime()
-    );
+    // Kelompokkan per tanggal
+    const mapByDate = new Map<string, { totalEggs: number; totalPop: number; totalFeed: number }>();
+    logs.forEach((l) => {
+      const prev = mapByDate.get(l.date) || { totalEggs: 0, totalPop: 0, totalFeed: 0 };
+      mapByDate.set(l.date, {
+        totalEggs: prev.totalEggs + l.intact_egg_count,
+        totalPop: prev.totalPop + (l.final_population || 2500),
+        totalFeed: prev.totalFeed + l.feed_kg,
+      });
+    });
 
-    // Ambil maksimal 10 hari terakhir
-    const last10Dates = dates.slice(-10);
-
-    return last10Dates.map((d) => {
-      const logsOnDate = relevantLogs.filter((r) => r.date === d);
-      const totalEggCount = logsOnDate.reduce((acc, l) => acc + l.intact_egg_count, 0);
-      const totalPop = logsOnDate.reduce((acc, l) => acc + l.final_population, 0);
-      const totalEggKg = logsOnDate.reduce((acc, l) => acc + (l.intact_egg_kg + l.broken_egg_kg), 0);
-      const totalFeedKg = logsOnDate.reduce((acc, l) => acc + l.feed_kg, 0);
-
-      const hdp = totalPop > 0 ? Number(((totalEggCount / totalPop) * 100).toFixed(1)) : 0;
-      const fcr = totalEggKg > 0 ? Number((totalFeedKg / totalEggKg).toFixed(2)) : 0;
-
-      // Format label hari & tanggal (contoh: "18 Nov")
-      const dateObj = new Date(d);
-      const label = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
-
+    const dates = Array.from(mapByDate.keys()).sort();
+    return dates.map((d) => {
+      const info = mapByDate.get(d)!;
+      const hdp = info.totalPop > 0 ? Number(((info.totalEggs / info.totalPop) * 100).toFixed(1)) : 0;
+      const fcr = info.totalEggs > 0 ? Number((info.totalFeed / (info.totalEggs * 0.0625)).toFixed(2)) : 2.05;
+      const dObj = new Date(d);
+      const label = isNaN(dObj.getTime())
+        ? d
+        : dObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
       return {
         date: d,
         label,
         hdp,
+        target_min: 88,
+        target_max: 92,
+        feedKg: Math.round(info.totalFeed),
         fcr,
       };
     });
   }, [recordings, selectedKandangId]);
 
-  // 8. Handler: Tambah Unit Kandang
+  // 9. Client-Side Image Compression (Max 800px untuk inferensi cepat Groq Vision <3s)
+  const compressImageFile = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 800;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.onerror = () => reject(new Error('Gagal memproses file citra.'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('Gagal membaca file gambar.'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Handler Upload Foto dari Perangkat / Kamera
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setScanError(null);
+      setSelectedPresetId(null);
+      const compressedDataUrl = await compressImageFile(file);
+      setScanImagePreview(compressedDataUrl);
+      setScanImageBase64(compressedDataUrl);
+    } catch (err: unknown) {
+      setScanError((err as Error)?.message || 'Gagal mengompres gambar.');
+    }
+  };
+
+  // Handler Pilih Preset Sampel Diagnostik
+  const handleSelectPreset = (preset: VisionSamplePreset) => {
+    setSelectedPresetId(preset.id);
+    setScanImagePreview(preset.dataUrl);
+    setScanImageBase64(preset.dataUrl);
+    setScanError(null);
+    setScanResult(null);
+  };
+
+  // Handler Eksekusi Scan AI Health Vision via Groq
+  const handleExecuteScan = async () => {
+    if (!scanImageBase64) {
+      setScanError('Silakan pilih foto unggas atau sampel preset terlebih dahulu.');
+      return;
+    }
+
+    setIsScanning(true);
+    setScanError(null);
+    setScanResult(null);
+
+    try {
+      const targetUnit = userKandangs.find((k) => k.id === recordKandangId) || userKandangs[0];
+      const payload = {
+        imageBase64: scanImageBase64,
+        mimeType: 'image/jpeg',
+        coopName: targetUnit?.name || 'Kandang Layer Aktif',
+        strain: targetUnit?.strain || 'ISA Brown',
+      };
+
+      const res = await fetch('/api/ai/health-scan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server merespon error: ${res.status}`);
+      }
+
+      const resData = await res.json();
+      const diagnosis = resData.data || resData.diagnosis;
+      if (!resData.success || !diagnosis) {
+        throw new Error(resData.error || 'Gagal memproses hasil diagnosis visual.');
+      }
+
+      setScanResult(diagnosis);
+      setFeedbackNotice({
+        type: 'success',
+        message: `✓ Diagnosis AI berhasil: ${diagnosis.status_kondisi} (${diagnosis.tingkat_risiko})`,
+      });
+      setTimeout(() => setFeedbackNotice(null), 4000);
+    } catch (err: unknown) {
+      console.error('Scan Error:', err);
+      setScanError((err as Error)?.message || 'Terjadi kesalahan saat memanggil AI Vision.');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // Handler Terapkan Hasil Scan AI ke Form Recording
+  const handleApplyToForm = () => {
+    if (!scanResult) return;
+
+    // 1. Tentukan kondisi kandang berdasarkan status & risiko
+    let matchedCondition = 'Normal';
+    const statusLower = scanResult.status_kondisi.toLowerCase();
+    if (statusLower.includes('heat') || statusLower.includes('panting') || statusLower.includes('panas')) {
+      matchedCondition = 'Heat Stress';
+    } else if (statusLower.includes('feses') || statusLower.includes('diare') || statusLower.includes('cerna') || statusLower.includes('snot') || scanResult.tingkat_risiko === 'Kritis') {
+      matchedCondition = 'Sakit / Perlu Karantina';
+    } else if (statusLower.includes('vitamin') || scanResult.tingkat_risiko === 'Waspada') {
+      matchedCondition = 'Vitamin Anti-Stres';
+    }
+
+    setRecordCondition(matchedCondition);
+
+    // 2. Format catatan diagnosis dokter hewan AI
+    const aiNote = `[AI Vision Groq]: ${scanResult.status_kondisi} (${scanResult.tingkat_risiko}) - Gejala: ${scanResult.dugaan_gejala}. Tindakan: ${scanResult.rekomendasi_tindakan}`;
+    setRecordNotes(aiNote);
+
+    setFeedbackNotice({
+      type: 'success',
+      message: '✓ Hasil diagnosis & saran tindakan AI berhasil disinkronkan ke Form Recording!',
+    });
+    setTimeout(() => setFeedbackNotice(null), 4000);
+
+    // Scroll halus ke form recording
+    const formElem = document.getElementById('form-recording-harian');
+    if (formElem) {
+      formElem.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  // 10. Handler: Tambah Unit Kandang
   const handleCreateKandang = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser) return;
     if (!newKandangName.trim()) {
       setFeedbackNotice({ type: 'error', message: 'Nama unit kandang wajib diisi.' });
       return;
@@ -393,11 +572,11 @@ export default function DailyRecordingPage() {
       });
       setTimeout(() => setFeedbackNotice(null), 4000);
     } catch {
-      setFeedbackNotice({ type: 'error', message: 'Gagal membuat kandang baru.' });
+      setFeedbackNotice({ type: 'error', message: 'Gagal membuat unit kandang.' });
     }
   };
 
-  // 9. Handler: Hapus Unit Kandang
+  // 11. Handler: Hapus Unit Kandang
   const handleDeleteKandang = () => {
     if (!targetKandangToDelete) return;
     const target = kandangs.find((k) => k.id === targetKandangToDelete);
@@ -409,17 +588,15 @@ export default function DailyRecordingPage() {
       return;
     }
 
-    if (currentUser) {
-      const updatedUnits = loadKandangUnits(currentUser.id);
-      const updatedLogs = loadDailyRecordings(currentUser.id);
-      setKandangs(updatedUnits);
-      setRecordings(updatedLogs);
-      if (selectedKandangId === targetKandangToDelete) {
-        setSelectedKandangId('all');
-      }
-      if (recordKandangId === targetKandangToDelete && updatedUnits.length > 0) {
-        setRecordKandangId(updatedUnits[0].id);
-      }
+    const updatedUnits = loadKandangUnits(currentUser.id);
+    const updatedLogs = loadDailyRecordings(currentUser.id);
+    setKandangs(updatedUnits);
+    setRecordings(updatedLogs);
+    if (selectedKandangId === targetKandangToDelete) {
+      setSelectedKandangId('all');
+    }
+    if (recordKandangId === targetKandangToDelete && updatedUnits.length > 0) {
+      setRecordKandangId(updatedUnits[0].id);
     }
 
     setIsDeleteKandangOpen(false);
@@ -430,10 +607,9 @@ export default function DailyRecordingPage() {
     setTimeout(() => setFeedbackNotice(null), 4000);
   };
 
-  // 10. Handler: Simpan Recording Harian
+  // 12. Handler: Simpan Recording Harian
   const handleSaveRecording = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser) return;
     if (!recordKandangId) {
       setFeedbackNotice({ type: 'error', message: 'Silakan pilih unit kandang terlebih dahulu.' });
       return;
@@ -452,123 +628,95 @@ export default function DailyRecordingPage() {
         feed_kg: Number(recordFeedKg) || 0,
         feed_type: recordFeedType,
         condition_note: recordCondition,
-        notes: recordNotes,
+        notes: recordNotes.trim(),
       };
 
-      const saved = addDailyRecording(currentUser.id, payload);
-
-      // Refresh state
-      const updatedUnits = loadKandangUnits(currentUser.id);
+      const res = addDailyRecording(currentUser.id, payload);
       const updatedLogs = loadDailyRecordings(currentUser.id);
-      setKandangs(updatedUnits);
+      const updatedUnits = loadKandangUnits(currentUser.id);
       setRecordings(updatedLogs);
-
-      // Reset form ringan
-      setRecordDead(0);
-      setRecordCull(0);
-      setRecordNotes('');
+      setKandangs(updatedUnits);
 
       setFeedbackNotice({
         type: 'success',
-        message: `✓ Recording tanggal ${saved.date} untuk ${saved.kandang_name} berhasil disimpan! (HDP: ${saved.hdp_percent}%, FCR: ${saved.fcr})`,
+        message: `✓ Log recording harian tanggal ${res.date} berhasil disimpan! (HDP: ${res.hdp_percent}%, FCR: ${res.fcr})`,
       });
       setTimeout(() => setFeedbackNotice(null), 4000);
+
+      // Reset mortality and special notes
+      setRecordDead(0);
+      setRecordCull(0);
+      setRecordNotes('');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Gagal menyimpan recording.';
-      setFeedbackNotice({ type: 'error', message: msg });
+      setFeedbackNotice({ type: 'error', message: (err as Error)?.message || 'Gagal menyimpan recording.' });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // 11. Handler: Hapus Baris Log
-  const handleDeleteLog = (logId: string, date: string, kandangName: string) => {
-    if (confirm(`Hapus catatan recording tanggal ${date} untuk ${kandangName}?`)) {
-      deleteDailyRecording(logId);
-      if (currentUser) {
-        setKandangs(loadKandangUnits(currentUser.id));
-        setRecordings(loadDailyRecordings(currentUser.id));
-      }
-      setFeedbackNotice({
-        type: 'info',
-        message: `Catatan recording tanggal ${date} berhasil dihapus dan populasi telah direkalkulasi.`,
-      });
-      setTimeout(() => setFeedbackNotice(null), 3000);
-    }
-  };
-
-  // 12. Handler: Export CSV
-  const handleExportCsv = () => {
-    const csvContent = exportRecordingsToCsv(filteredRecordings);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `recording_harian_layer_${selectedKandangId}_${recordDate}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    setFeedbackNotice({
-      type: 'success',
-      message: '✓ File CSV riwayat recording harian berhasil diunduh.',
-    });
+  // 13. Handler: Hapus Baris Recording
+  const handleDeleteLog = (logId: string) => {
+    deleteDailyRecording(logId);
+    const updatedLogs = loadDailyRecordings(currentUser.id);
+    const updatedUnits = loadKandangUnits(currentUser.id);
+    setRecordings(updatedLogs);
+    setKandangs(updatedUnits);
+    setFeedbackNotice({ type: 'info', message: 'Log recording berhasil dihapus.' });
     setTimeout(() => setFeedbackNotice(null), 3000);
   };
 
-  if (!currentUser) {
-    return (
-      <div className="min-h-screen bg-[#070d0b] text-white flex items-center justify-center">
-        <p className="text-sm text-slate-400">Memuat Portal Peternak be-ternak...</p>
-      </div>
-    );
-  }
+  // 14. Handler: Export CSV
+  const handleExportCsv = () => {
+    const csvContent = exportRecordingsToCsv(recordings);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Recording_Layer_${currentUser.business_name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
-  // Sidebar Menu Config
-  const sideMenuItems = [
+  // Menu Navigation Sidebar Items
+  const navMenuItems = [
     {
       group: 'MANAJEMEN KANDANG',
       items: [
         {
-          id: 'overview',
           label: 'Ringkasan Kandang',
           icon: LayoutDashboard,
+          active: false,
           badge: null,
-          badgeColor: '',
           href: '/dashboard/peternak',
         },
         {
-          id: 'recipes',
           label: 'Resep Ransum AI',
           icon: BookOpen,
-          badge: isMounted ? `${savedRansums.length} Resep` : null,
-          badgeColor: 'bg-emerald-950 text-emerald-400 border border-emerald-500/20',
+          active: false,
+          badge: `${savedRansums.length} Resep`,
           href: '/dashboard/peternak',
         },
         {
-          id: 'nearby_feeds',
           label: 'Pakan Sekitar Kandang',
           icon: Layers,
+          active: false,
           badge: 'Radius 15km',
-          badgeColor: 'bg-slate-800 text-slate-300',
           href: '/dashboard/peternak',
         },
         {
-          id: 'simulasi',
           label: 'Simulasi Usaha Layer',
           icon: Calculator,
+          active: false,
           badge: 'Baru',
-          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold',
           href: '/dashboard/peternak/simulasi',
         },
         {
-          id: 'recording',
-          label: 'Recording Harian',
-          icon: ClipboardList,
-          badge: 'Harian',
-          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold',
-          href: '/dashboard/peternak/recording',
+          label: 'AI Health & Recording',
+          icon: ScanEye,
           active: true,
+          badge: 'AI Vision',
+          href: '/dashboard/peternak/recording',
         },
       ],
     },
@@ -576,19 +724,19 @@ export default function DailyRecordingPage() {
       group: 'KEANGGOTAAN & BIAYA',
       items: [
         {
-          id: 'subscription',
           label: 'Langganan & Pembayaran',
           icon: CreditCard,
-          badge: currentUser.is_verified ? 'Pro Aktif' : 'Pending',
-          badgeColor: currentUser.is_verified
+          active: false,
+          badge: currentUser.subscription_status === 'active' ? 'Pro Aktif' : 'Menunggu',
+          badgeColor: currentUser.subscription_status === 'active'
             ? 'bg-emerald-500/20 text-emerald-300'
-            : 'bg-amber-500/20 text-amber-300 animate-pulse',
+            : 'bg-amber-500/20 text-amber-300',
           href: '/dashboard/peternak',
         },
         {
-          id: 'verification_status',
           label: 'Status Verifikasi Akun',
           icon: ShieldCheck,
+          active: false,
           badge: currentUser.is_verified ? 'Terverifikasi' : 'Perlu Verif',
           badgeColor: currentUser.is_verified
             ? 'bg-emerald-500/20 text-emerald-300'
@@ -600,7 +748,7 @@ export default function DailyRecordingPage() {
   ];
 
   return (
-    <div className="h-screen bg-[#070d0b] text-slate-100 flex flex-col font-sans overflow-hidden">
+    <div className="min-h-screen bg-[#070d0b] text-slate-100 flex flex-col font-sans">
       <Navbar currentRegionName={currentUser.business_name} />
 
       {/* Mobile Menu Header Toggle */}
@@ -615,13 +763,13 @@ export default function DailyRecordingPage() {
 
         <div className="flex items-center gap-2">
           <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
-            Recording Layer
+            AI Vision & Log
           </span>
           <span
             suppressHydrationWarning
             className="text-xs font-bold text-white truncate max-w-[130px]"
           >
-            {currentUser?.name}
+            {currentUser.name}
           </span>
         </div>
       </div>
@@ -632,13 +780,9 @@ export default function DailyRecordingPage() {
         {/* SIDE MENU (SIDEBAR)                                               */}
         {/* ================================================================= */}
         <aside
-          className={`
-            fixed lg:sticky top-16 lg:top-0 bottom-0 left-0 z-40
-            w-72 h-[calc(100vh-4rem)] bg-[#0A1410] backdrop-blur-md
-            border-r border-[#1E352B] flex flex-col justify-between
-            transition-transform duration-300 ease-in-out shrink-0
-            ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
-          `}
+          className={`${
+            isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+          } lg:translate-x-0 transition-transform duration-300 ease-in-out fixed lg:static z-40 top-[57px] bottom-0 left-0 w-72 bg-[#0A1410] border-r border-[#1E352B] flex flex-col shrink-0 overflow-y-auto`}
         >
           {/* Top: Profile Card & Switcher */}
           <div className="p-4 border-b border-[#1E352B] space-y-3">
@@ -649,15 +793,15 @@ export default function DailyRecordingPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <h2 suppressHydrationWarning className="text-xs font-bold text-white truncate">
-                    {currentUser?.name}
+                    {currentUser.name}
                   </h2>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 </div>
                 <p suppressHydrationWarning className="text-[10px] text-emerald-300 font-semibold truncate">
-                  {currentUser?.business_name}
+                  {currentUser.business_name}
                 </p>
                 <p suppressHydrationWarning className="text-[9px] text-slate-400 truncate">
-                  Populasi: {(currentUser?.poultry_capacity || 5000).toLocaleString('id-ID')} Ekor Layer
+                  Populasi: {(currentUser.poultry_capacity || 5000).toLocaleString('id-ID')} Ekor Layer
                 </p>
               </div>
             </div>
@@ -690,42 +834,39 @@ export default function DailyRecordingPage() {
             </div>
           </div>
 
-          {/* Navigation Menu Groups */}
-          <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-            {sideMenuItems.map((group, gIdx) => (
-              <div key={gIdx} className="space-y-1.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3">
+          {/* Navigation Links */}
+          <nav className="p-3 space-y-5 flex-1">
+            {navMenuItems.map((group, idx) => (
+              <div key={idx} className="space-y-1">
+                <span className="px-3 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
                   {group.group}
                 </span>
-
-                <div className="space-y-1">
-                  {group.items.map((item) => {
+                <div className="space-y-0.5 pt-1">
+                  {group.items.map((item, itemIdx) => {
                     const Icon = item.icon;
-                    const isActive = item.active || false;
-
                     return (
                       <Link
-                        key={item.id}
+                        key={itemIdx}
                         href={item.href}
                         onClick={() => setIsMobileMenuOpen(false)}
-                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group ${
-                          isActive
-                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-600/25 border border-emerald-400/40'
-                            : 'text-slate-300 hover:text-white hover:bg-slate-900/80 border border-transparent'
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                          item.active
+                            ? 'bg-emerald-500 text-slate-950 font-bold shadow-lg shadow-emerald-500/20'
+                            : 'text-slate-300 hover:bg-[#13231C] hover:text-white'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5 truncate">
-                          <Icon
-                            className={`w-4 h-4 shrink-0 transition-colors ${
-                              isActive ? 'text-white' : 'text-slate-400 group-hover:text-emerald-400'
-                            }`}
-                          />
-                          <span className="truncate">{item.label}</span>
+                        <div className="flex items-center gap-2.5">
+                          <Icon className={`w-4 h-4 ${item.active ? 'text-slate-950' : 'text-emerald-400'}`} />
+                          <span>{item.label}</span>
                         </div>
-
                         {item.badge && (
                           <span
-                            className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${item.badgeColor}`}
+                            className={`px-1.5 py-0.5 text-[9px] font-bold rounded-md ${
+                              item.active
+                                ? 'bg-slate-950/20 text-slate-950 border border-slate-950/30'
+                                : (item as any).badgeColor ||
+                                  'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            }`}
                           >
                             {item.badge}
                           </span>
@@ -736,1045 +877,1267 @@ export default function DailyRecordingPage() {
                 </div>
               </div>
             ))}
-          </div>
+          </nav>
 
-          {/* Bottom Sidebar Info */}
-          <div className="p-3 border-t border-[#1E352B] bg-[#0A1410]/60 text-center">
-            <span className="text-[10px] text-slate-400">
-              be-ternak • Recording Presisi
+          {/* Bottom Quick Hub Links */}
+          <div className="p-3 border-t border-[#1E352B] bg-[#08120e]">
+            <span className="px-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+              Pintasan Platform
             </span>
+            <div className="grid grid-cols-2 gap-1.5">
+              <Link
+                href="/dashboard/peternak/simulasi"
+                className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-[#0F1D17] hover:bg-[#162a21] text-[11px] font-medium text-emerald-300 border border-emerald-500/20 transition-colors"
+              >
+                <Calculator className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="truncate">Simulasi HPP</span>
+              </Link>
+              <Link
+                href="/peta"
+                className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-[#0F1D17] hover:bg-[#162a21] text-[11px] font-medium text-slate-300 hover:text-white border border-[#1E352B] transition-colors"
+              >
+                <Layers className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="truncate">Peta Pakan</span>
+              </Link>
+            </div>
           </div>
         </aside>
 
-        {/* Mobile Backdrop Overlay */}
+        {/* Mobile Overlay */}
         {isMobileMenuOpen && (
           <div
             onClick={() => setIsMobileMenuOpen(false)}
-            className="fixed inset-0 z-30 bg-black/60 backdrop-blur-xs lg:hidden"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden"
           />
         )}
 
         {/* ================================================================= */}
-        {/* MAIN RECORDING CONTENT                                            */}
+        {/* MAIN DASHBOARD CONTENT AREA                                       */}
         {/* ================================================================= */}
-        <main className="flex-1 h-full overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 space-y-6 w-full">
-          {/* Breadcrumb & Action Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <Link
-                  href="/dashboard/peternak"
-                  className="hover:text-emerald-400 transition-colors"
-                >
+        <main className="flex-1 overflow-y-auto bg-[#060D0A] p-4 lg:p-6 space-y-6">
+          {/* Breadcrumb & Header Action Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1E352B]">
+            <div>
+              <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
+                <Link href="/dashboard/peternak" className="hover:text-emerald-400">
                   Portal Peternak
                 </Link>
-                <ChevronRight className="w-3 h-3 text-slate-600" />
-                <span className="text-emerald-400 font-semibold">Recording Harian</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+                <span className="text-emerald-400 font-semibold">AI Health Scan & Recording Harian</span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-                <ClipboardList className="w-6 h-6 text-emerald-400" />
-                <span>Recording Harian Produksi & Pakan Layer</span>
-              </h1>
-              <p className="text-xs text-slate-400">
-                Pencatatan mortalitas, afkir, produksi telur butir/kg, intake pakan harian, FCR presisi, dan status unit kandang.
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-xl lg:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                  <ScanEye className="w-6 h-6 text-emerald-400 shrink-0" />
+                  AI Health Scan & Recording Harian Layer
+                </h1>
+                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Groq Vision AI Active
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Monitoring kesehatan ayam layer berbasis AI Vision multimodal (Groq) & pencatatan performa harian (HDP, FCR, Deplesi)
               </p>
             </div>
 
-            {/* Header Right Actions: Filter Kandang, Tambah Kandang, Hapus Kandang & Export */}
+            {/* Header Right Actions: Filter Kandang + Tambah + Hapus + Export */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* Filter Dropdown Kandang */}
-              <div className="flex items-center gap-1.5 bg-[#0F1D17] border border-[#1E352B] rounded-xl px-3 py-1.5 text-xs text-slate-300">
-                <Building2 className="w-4 h-4 text-emerald-400" />
+              {/* Unit Kandang Filter Dropdown */}
+              <div className="flex items-center gap-1.5 bg-[#0F1D17] px-3 py-1.5 rounded-xl border border-[#1E352B]">
+                <Filter className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-[11px] font-medium text-slate-400">Unit:</span>
                 <select
                   value={selectedKandangId}
-                  onChange={(e) => {
-                    if (e.target.value === '__add_new__') {
-                      setIsAddKandangOpen(true);
-                    } else {
-                      setSelectedKandangId(e.target.value);
-                    }
-                  }}
-                  className="bg-transparent text-white font-semibold outline-hidden cursor-pointer"
+                  onChange={(e) => setSelectedKandangId(e.target.value)}
+                  className="bg-transparent text-xs text-emerald-300 font-semibold focus:outline-none cursor-pointer"
                 >
-                  <option value="all" className="bg-[#0A1410] text-white">
-                    Semua Unit Kandang ({userKandangs.length})
+                  <option value="all" className="bg-[#0A1410] text-slate-200">
+                    Semua Kandang ({userKandangs.length})
                   </option>
                   {userKandangs.map((k) => (
-                    <option key={k.id} value={k.id} className="bg-[#0A1410] text-white">
-                      {k.name} ({k.current_population.toLocaleString('id-ID')} ekor)
+                    <option key={k.id} value={k.id} className="bg-[#0A1410] text-slate-200">
+                      {k.name} ({k.house_type})
                     </option>
                   ))}
-                  <option value="__add_new__" className="bg-emerald-950 text-emerald-300 font-bold">
-                    + Tambah Kandang Baru...
-                  </option>
                 </select>
               </div>
 
               {/* Tombol Tambah Kandang */}
               <button
                 onClick={() => setIsAddKandangOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs shadow-md shadow-emerald-600/30 transition-all cursor-pointer"
               >
-                <Plus className="w-4 h-4" />
-                <span>Tambah Kandang</span>
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Tambah Kandang</span>
               </button>
 
               {/* Tombol Hapus Kandang */}
               <button
                 onClick={() => setIsDeleteKandangOpen(true)}
-                title="Kelola & Hapus Unit Kandang"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/80 hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-800/60 text-xs font-semibold transition-all cursor-pointer"
+                disabled={userKandangs.length <= 1}
+                title={userKandangs.length <= 1 ? 'Minimal harus tersisa 1 unit kandang' : 'Hapus unit kandang'}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/40 font-semibold text-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Hapus Kandang</span>
+                <span>Hapus Kandang</span>
               </button>
 
               {/* Tombol Export CSV */}
               <button
                 onClick={handleExportCsv}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#0F1D17] hover:bg-emerald-950/60 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0F1D17] hover:bg-[#162A21] text-slate-300 hover:text-white border border-[#1E352B] font-semibold text-xs transition-all cursor-pointer"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>Export CSV</span>
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">Export CSV</span>
               </button>
             </div>
           </div>
 
-          {/* Toast Notification Banner */}
+          {/* Feedback Banner Notification */}
           {feedbackNotice && (
             <div
-              className={`p-4 rounded-xl border flex items-center justify-between shadow-lg transition-all ${
+              className={`p-3 rounded-xl border flex items-center justify-between text-xs font-semibold animate-in fade-in slide-in-from-top-2 ${
                 feedbackNotice.type === 'success'
-                  ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200'
+                  ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-200'
                   : feedbackNotice.type === 'error'
-                  ? 'bg-rose-950/80 border-rose-500/50 text-rose-200'
-                  : 'bg-teal-950/80 border-teal-500/50 text-teal-200'
+                  ? 'bg-rose-950/60 border-rose-500/40 text-rose-200'
+                  : 'bg-blue-950/60 border-blue-500/40 text-blue-200'
               }`}
             >
-              <div className="flex items-center gap-3">
-                {feedbackNotice.type === 'success' ? (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                ) : feedbackNotice.type === 'error' ? (
-                  <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
-                ) : (
-                  <Info className="w-5 h-5 text-teal-400 shrink-0" />
-                )}
-                <p className="text-xs sm:text-sm font-medium">{feedbackNotice.message}</p>
-              </div>
-              <button
-                onClick={() => setFeedbackNotice(null)}
-                className="p-1 rounded-lg hover:bg-black/20 text-slate-400 hover:text-white cursor-pointer"
-              >
+              <span>{feedbackNotice.message}</span>
+              <button onClick={() => setFeedbackNotice(null)} className="text-slate-400 hover:text-white">
                 <X className="w-4 h-4" />
               </button>
             </div>
           )}
 
-          {/* =============================================================== */}
-          {/* 4 KARTU KPI UTAMA (SEJAJAR DI ATAS)                             */}
-          {/* =============================================================== */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* KPI 1: Populasi Hidup Saat Ini */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#0F1D17] border border-[#1E352B] shadow-lg relative overflow-hidden group">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Populasi Hidup Saat Ini</span>
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                  <HeartPulse className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-extrabold text-white">
-                  {kpiData.currentPopTotal.toLocaleString('id-ID')}
-                </span>
-                <span className="text-xs text-slate-400">ekor</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between text-[11px] pt-2 border-t border-[#1E352B]/60">
-                <span className="text-emerald-400 font-bold">
-                  Daya Hidup: {kpiData.dayaHidupPercent}%
-                </span>
-                <span className="text-slate-400">
-                  Awal: {kpiData.initialPopTotal.toLocaleString('id-ID')}
-                </span>
-              </div>
+          {/* ================================================================= */}
+          {/* SECTION: STATUS UNIT KANDANG AKTIF (GRID CARDS)                    */}
+          {/* ================================================================= */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                Status Unit Kandang Aktif ({userKandangs.length} Unit)
+              </h2>
+              <span className="text-[11px] text-slate-400">
+                Klik kartu untuk memfilter log & grafik secara langsung
+              </span>
             </div>
 
-            {/* KPI 2: Produksi Telur Terbaru */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#0F1D17] border border-[#1E352B] shadow-lg relative overflow-hidden group">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Produksi Telur Harian</span>
-                <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                  <Egg className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-extrabold text-white">
-                  {kpiData.latestEggKg.toLocaleString('id-ID')}
-                </span>
-                <span className="text-xs text-slate-400">
-                  kg ({kpiData.latestEggCount.toLocaleString('id-ID')} btr)
-                </span>
-              </div>
-              <div className="mt-2 flex items-center justify-between text-[11px] pt-2 border-t border-[#1E352B]/60">
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-                  {kpiData.latestHdp}% HDP
-                </span>
-                <span className="text-slate-400">
-                  Avg: {kpiData.avgEggWeight}g/btr
-                </span>
-              </div>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {userKandangs.map((k) => {
+                const isSelected = selectedKandangId === k.id;
+                const livePop = k.current_population || k.initial_population;
+                const rate = k.initial_population > 0 ? ((livePop / k.initial_population) * 100).toFixed(1) : '100';
 
-            {/* KPI 3: Pakan & FCR Harian */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#0F1D17] border border-[#1E352B] shadow-lg relative overflow-hidden group">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">FCR & Efisiensi Pakan</span>
-                <div className="w-8 h-8 rounded-lg bg-teal-500/20 border border-teal-500/30 flex items-center justify-center text-teal-300">
-                  <Scale className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-extrabold text-white">
-                  {kpiData.latestFcr}
-                </span>
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-                    kpiData.latestFcr <= 2.1
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                      : kpiData.latestFcr <= 2.3
-                      ? 'bg-sky-500/20 text-sky-300 border-sky-500/30'
-                      : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                  }`}
-                >
-                  {kpiData.latestFcr <= 2.1
-                    ? 'Sangat Efisien'
-                    : kpiData.latestFcr <= 2.3
-                    ? 'Normal'
-                    : 'Boros Pakan'}
-                </span>
-              </div>
-              <div className="mt-2 flex items-center justify-between text-[11px] pt-2 border-t border-[#1E352B]/60">
-                <span className="text-slate-300 font-medium">
-                  {kpiData.latestFeedKg} kg pakan
-                </span>
-                <span className="text-teal-400 font-semibold">
-                  Intake: {kpiData.latestFeedIntake} g/ekor
-                </span>
-              </div>
-            </div>
+                return (
+                  <div
+                    key={k.id}
+                    onClick={() => setSelectedKandangId(isSelected ? 'all' : k.id)}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
+                      isSelected
+                        ? 'bg-gradient-to-br from-[#122b20] to-[#0A1410] border-emerald-500 shadow-lg shadow-emerald-500/10'
+                        : 'bg-[#0F1D17] hover:bg-[#13261e] border-[#1E352B]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="text-sm font-bold text-white">{k.name}</h3>
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                              k.house_type === 'Closed House'
+                                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                                : k.house_type === 'Semi-Closed'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            }`}
+                          >
+                            {k.house_type}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          Strain: <span className="text-slate-300 font-semibold">{k.strain}</span> • Umur: {k.age_weeks} Minggu
+                        </p>
+                      </div>
 
-            {/* KPI 4: Deplesi & Telur Retak */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#0F1D17] border border-[#1E352B] shadow-lg relative overflow-hidden group">
+                      {isSelected && (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500 text-slate-950">
+                          Aktif
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Population bar */}
+                    <div className="space-y-1 pt-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">Populasi Hidup:</span>
+                        <span className="font-bold text-emerald-300">
+                          {livePop.toLocaleString('id-ID')} / {k.initial_population.toLocaleString('id-ID')} ekor
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-500 rounded-full transition-all"
+                          style={{ width: `${Math.min(100, Math.max(0, Number(rate)))}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[9px] text-slate-500">
+                        <span>Daya Hidup: {rate}%</span>
+                        <span>Chick-in: {k.chick_in_date}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ================================================================= */}
+          {/* SECTION: 4 KARTU KPI UTAMA                                         */}
+          {/* ================================================================= */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Card 1: Populasi Hidup */}
+            <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Deplesi & Telur Retak</span>
-                <div className="w-8 h-8 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                <span className="text-xs font-semibold text-slate-400">Populasi Hidup</span>
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
                   <Activity className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-extrabold text-white">
-                  {kpiData.totalDeplesi.toLocaleString('id-ID')}
-                </span>
-                <span className="text-xs text-rose-400 font-semibold">
-                  ekor ({kpiData.deplesiPercent}%)
-                </span>
+              <div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-white">
+                    {kpiData.currentPopTotal.toLocaleString('id-ID')}
+                  </span>
+                  <span className="text-xs text-slate-400">ekor</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    {kpiData.survivalRate.toFixed(1)}% Daya Hidup
+                  </span>
+                  <span className="text-[10px] text-slate-500">
+                    Awal: {kpiData.initialPopTotal.toLocaleString('id-ID')}
+                  </span>
+                </div>
               </div>
-              <div className="mt-2 flex items-center justify-between text-[11px] pt-2 border-t border-[#1E352B]/60">
-                <span className="text-slate-400">
-                  Mati: {kpiData.totalDead} • Afkir: {kpiData.totalCull}
-                </span>
-                <span className="text-amber-400 font-semibold">
-                  Retak: {kpiData.latestBrokenKg} kg ({kpiData.brokenPercent}%)
-                </span>
+            </div>
+
+            {/* Card 2: Produksi Telur */}
+            <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-400">Produksi Telur Terbaru</span>
+                <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <Egg className="w-4 h-4" />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-white">
+                    {kpiData.todayEggKg.toFixed(1)}
+                  </span>
+                  <span className="text-xs text-slate-400">kg/hari</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    HDP {kpiData.todayHdp.toFixed(1)}%
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    {kpiData.todayEggCount.toLocaleString('id-ID')} butir ({kpiData.avgEggWeight.toFixed(1)}g)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Pakan & FCR Harian */}
+            <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-400">Pakan & FCR Harian</span>
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <Scale className="w-4 h-4" />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-white">
+                    {kpiData.fcr.toFixed(2)}
+                  </span>
+                  <span className="text-xs text-slate-400">FCR</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${kpiData.fcrBadgeColor}`}>
+                    {kpiData.fcrStatus}
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    {kpiData.todayFeedKg} kg ({kpiData.feedIntakeGram.toFixed(0)} g/ekor)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 4: Deplesi & Telur Retak */}
+            <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-400">Deplesi & Telur Retak</span>
+                <div className="w-7 h-7 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-white">
+                    {(kpiData.totalDeadAccum + kpiData.totalCullAccum).toLocaleString('id-ID')}
+                  </span>
+                  <span className="text-xs text-slate-400">ekor deplesi</span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                    Deplesi {kpiData.deplesiRate.toFixed(2)}%
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    Retak {kpiData.todayBrokenKg.toFixed(1)} kg ({kpiData.brokenRate.toFixed(1)}%)
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* =============================================================== */}
-          {/* LAYOUT 2 KOLOM: FORM INPUT (KIRI) & GRAFIK + TABEL (KANAN)       */}
-          {/* =============================================================== */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            
-            {/* ============================================================= */}
-            {/* KOLOM KIRI (4 Kolom): FORM INPUT RECORDING HARIAN             */}
-            {/* ============================================================= */}
-            <div className="lg:col-span-5 bg-[#0F1D17] p-5 sm:p-6 rounded-3xl border border-[#1E352B] shadow-xl space-y-5">
-              <div className="flex items-center justify-between pb-3 border-b border-[#1E352B]">
-                <div className="flex items-center gap-2">
-                  <CalendarCheck className="w-5 h-5 text-emerald-400" />
-                  <h2 className="text-base font-bold text-white">Form Input Recording</h2>
+          {/* ================================================================= */}
+          {/* SECTION: AI HEALTH VISION SCANNER CARD                            */}
+          {/* ================================================================= */}
+          <div className="rounded-2xl bg-gradient-to-br from-[#0c2419] via-[#0F1D17] to-[#0A1410] border-2 border-emerald-500/40 p-4 lg:p-6 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-emerald-950">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-300 shadow-md">
+                  <ScanEye className="w-6 h-6 animate-pulse" />
                 </div>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold">
-                  Auto-Calculated
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-black text-white">AI Health Vision Scanner</h2>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-slate-950">
+                      Groq Multimodal
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-300/80">
+                    Deteksi klinis visual unggas & feses secara instan (Heat Stress, Coryza, Enteritis, dll.)
+                  </p>
+                </div>
+              </div>
+
+              {/* Action execute scan button */}
+              <button
+                onClick={handleExecuteScan}
+                disabled={isScanning || !scanImageBase64}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {isScanning ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Menganalisis Klinis...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Scan Kesehatan AI</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Presets and Upload Input */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+              {/* Kolom Kiri: Pilihan Sampel Preset & Upload */}
+              <div className="lg:col-span-7 space-y-3">
+                <div>
+                  <span className="text-[11px] font-bold text-slate-300 block mb-1.5 uppercase tracking-wider">
+                    Pilih Sampel Preset Klinis Cepat (Uji Coba Langsung):
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {VISION_SAMPLE_PRESETS.map((preset) => {
+                      const isSelected = selectedPresetId === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => handleSelectPreset(preset)}
+                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                            isSelected
+                              ? 'bg-emerald-950/80 border-emerald-500 ring-2 ring-emerald-500/30'
+                              : 'bg-[#091510] hover:bg-[#11241c] border-[#1E352B]'
+                          }`}
+                        >
+                          <div>
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border inline-block mb-1 ${preset.badgeColor}`}>
+                              {preset.badge}
+                            </span>
+                            <div className="text-xs font-bold text-white line-clamp-1">
+                              {preset.title}
+                            </div>
+                            <div className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">
+                              {preset.sublabel}
+                            </div>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between text-[9px] text-emerald-400 font-semibold">
+                            <span>Gunakan Preset</span>
+                            {isSelected && <Check className="w-3.5 h-3.5" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Upload Foto Mandiri */}
+                <div className="pt-2">
+                  <span className="text-[11px] font-bold text-slate-300 block mb-1.5 uppercase tracking-wider">
+                    Atau Upload Foto Sendiri dari Kandang:
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#0F1D17] hover:bg-[#162A21] border border-[#1E352B] text-slate-200 text-xs font-semibold cursor-pointer"
+                    >
+                      <Upload className="w-4 h-4 text-emerald-400" />
+                      <span>Upload Gambar / File Foto</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (fileInputRef.current) {
+                          fileInputRef.current.setAttribute('capture', 'environment');
+                          fileInputRef.current.click();
+                        }
+                      }}
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#0F1D17] hover:bg-[#162A21] border border-[#1E352B] text-slate-200 text-xs font-semibold cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4 text-emerald-400" />
+                      <span>Buka Kamera HP Langsung</span>
+                    </button>
+                  </div>
+                </div>
+
+                {scanError && (
+                  <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{scanError}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Kolom Kanan: Preview Citra & Scanning Animation */}
+              <div className="lg:col-span-5 flex flex-col justify-center">
+                <div className="relative w-full h-44 sm:h-48 rounded-xl bg-slate-950 border border-emerald-900/60 overflow-hidden flex items-center justify-center">
+                  {scanImagePreview ? (
+                    <>
+                      <img
+                        src={scanImagePreview}
+                        alt="Preview Scanner"
+                        className="w-full h-full object-contain"
+                      />
+
+                      {/* Scanning Laser Line Effect */}
+                      {isScanning && (
+                        <div className="absolute inset-0 pointer-events-none">
+                          <div className="w-full h-1 bg-gradient-to-r from-emerald-500 via-emerald-300 to-emerald-500 shadow-lg shadow-emerald-400 animate-pulse relative top-1/2 -translate-y-1/2" />
+                          <div className="absolute inset-0 bg-emerald-500/10 animate-pulse" />
+                        </div>
+                      )}
+
+                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-900/80 text-emerald-300 border border-emerald-500/30">
+                        {isScanning ? 'Menganalisis Visual...' : 'Citra Siap Di-scan'}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center p-4 text-slate-500 space-y-1">
+                      <Camera className="w-8 h-8 mx-auto text-slate-600" />
+                      <p className="text-xs font-medium">Belum ada foto yang dipilih</p>
+                      <p className="text-[10px] text-slate-600">
+                        Pilih salah satu sampel di samping atau upload foto ayam Anda
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Diagnosis Result View */}
+            {scanResult && (
+              <div className="mt-4 p-4 rounded-xl bg-[#07130e] border border-emerald-500/40 space-y-3 animate-in fade-in slide-in-from-top-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Stethoscope className="w-5 h-5 text-emerald-400 shrink-0" />
+                    <div>
+                      <span className="text-xs text-slate-400 font-semibold block">
+                        Hasil Analisis Klinis Veteriner AI:
+                      </span>
+                      <h3 className="text-sm sm:text-base font-black text-white">
+                        {scanResult.status_kondisi}
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
+                        scanResult.tingkat_risiko === 'Kritis'
+                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                          : scanResult.tingkat_risiko === 'Waspada'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      }`}
+                    >
+                      Risiko: {scanResult.tingkat_risiko}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {scanResult.model_used || 'Groq Vision'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 rounded-lg bg-[#0c1a14] border border-[#1E352B] space-y-1">
+                    <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5">
+                      <Eye className="w-3.5 h-3.5" />
+                      Dugaan Temuan Visual:
+                    </span>
+                    <p className="text-slate-300 leading-relaxed text-[11px]">
+                      {scanResult.dugaan_gejala}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-[#0c1a14] border border-[#1E352B] space-y-1">
+                    <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
+                      <HeartPulse className="w-3.5 h-3.5" />
+                      Rekomendasi Tindakan Dokter Hewan:
+                    </span>
+                    <p className="text-slate-300 leading-relaxed text-[11px]">
+                      {scanResult.rekomendasi_tindakan}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tombol Terapkan ke Form Recording */}
+                <div className="flex items-center justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={handleApplyToForm}
+                    className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs shadow-md shadow-emerald-600/30 transition-all cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Terapkan Hasil ke Form Recording Harian</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ================================================================= */}
+          {/* SECTION: FORM INPUT RECORDING & GRAFIK (2 KOLOM)                   */}
+          {/* ================================================================= */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* ------------------------------------------------------------- */}
+            {/* KOLOM KIRI (5 Kolom): FORM INPUT RECORDING HARIAN             */}
+            {/* ------------------------------------------------------------- */}
+            <div
+              id="form-recording-harian"
+              className="lg:col-span-5 bg-[#0F1D17] border border-[#1E352B] rounded-2xl p-4 lg:p-5 space-y-4"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-[#1E352B]">
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="w-5 h-5 text-emerald-400" />
+                  <h2 className="text-sm font-bold text-white">Input Recording Harian</h2>
+                </div>
+                <span className="text-[11px] text-slate-400">
+                  {new Date(recordDate).toLocaleDateString('id-ID', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
                 </span>
               </div>
 
-              <form onSubmit={handleSaveRecording} className="space-y-4 text-xs">
-                {/* 1. Tanggal Catat & Unit Kandang */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">
+              <form onSubmit={handleSaveRecording} className="space-y-3.5 text-xs">
+                {/* Tanggal & Pilihan Unit Kandang */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-emerald-400" />
                       Tanggal Catat:
                     </label>
                     <input
                       type="date"
                       value={recordDate}
                       onChange={(e) => setRecordDate(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden font-medium"
+                      className="w-full px-3 py-2 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 font-medium"
                       required
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1">
+                      <Building2 className="w-3.5 h-3.5 text-emerald-400" />
                       Unit Kandang:
                     </label>
                     <select
                       value={recordKandangId}
                       onChange={(e) => setRecordKandangId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden font-medium cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
                       required
                     >
                       {userKandangs.map((k) => (
-                        <option key={k.id} value={k.id} className="bg-[#0A1410] text-white">
-                          {k.name} ({k.current_population.toLocaleString('id-ID')} ekor)
+                        <option key={k.id} value={k.id}>
+                          {k.name} ({k.current_population || k.initial_population} ekor)
                         </option>
                       ))}
                     </select>
                   </div>
                 </div>
 
-                {/* Info Populasi Aktif Kandang Terpilih */}
-                {activeInputKandang && (
-                  <div className="p-2.5 rounded-xl bg-[#0A1410] border border-[#1E352B] flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400">
-                      Populasi Aktif {activeInputKandang.name}:
-                    </span>
+                {/* Populasi Berjalan Info Pill */}
+                {activeFormKandang && (
+                  <div className="p-2.5 rounded-xl bg-[#09140f] border border-[#1E352B] flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400">Populasi Aktif Kandang:</span>
                     <span className="font-bold text-emerald-300">
-                      {activeInputKandang.current_population.toLocaleString('id-ID')} ekor
+                      {(activeFormKandang.current_population || activeFormKandang.initial_population).toLocaleString('id-ID')} ekor
                     </span>
                   </div>
                 )}
 
-                {/* 2. Deplesi: Ayam Mati & Ayam Afkir */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">
-                      Ayam Mati (Ekor):
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={recordDead}
-                      onChange={(e) => setRecordDead(Math.max(0, parseInt(e.target.value) || 0))}
-                      className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">
-                      Ayam Afkir (Ekor):
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={recordCull}
-                      onChange={(e) => setRecordCull(Math.max(0, parseInt(e.target.value) || 0))}
-                      className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden"
-                    />
+                {/* Mortalitas: Ayam Mati & Afkir */}
+                <div className="p-3 rounded-xl bg-[#09140f] border border-[#1E352B] space-y-2">
+                  <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider block">
+                    Kematian & Afkir (Deplesi Hari Ini):
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-slate-300">Ayam Mati (ekor):</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={recordDead}
+                        onChange={(e) => setRecordDead(Number(e.target.value))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-rose-500 font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-slate-300">Ayam Afkir (ekor):</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={recordCull}
+                        onChange={(e) => setRecordCull(Number(e.target.value))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-rose-500 font-bold"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {/* 3. Produksi Telur Utuh (Kg & Butir) */}
-                <div className="p-3 rounded-2xl bg-[#0A1410] border border-[#1E352B] space-y-2.5">
+                {/* Produksi Telur Utuh (Kg & Butir) */}
+                <div className="p-3 rounded-xl bg-[#09140f] border border-[#1E352B] space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-300 font-bold flex items-center gap-1.5">
-                      <Egg className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
                       Produksi Telur Utuh:
                     </span>
-                    <span className="text-[11px] text-emerald-400 font-semibold">
-                      Est. HDP: {liveFormPreview.hdp}%
+                    <span className="text-[10px] font-bold text-emerald-400">
+                      Live HDP: {formPreview.hdp}%
                     </span>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-slate-400 text-[11px] mb-1">
-                        Berat Utuh (kg):
-                      </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-slate-300">Berat Total (kg):</label>
                       <input
                         type="number"
                         step="0.1"
                         min="0"
                         value={recordEggKg}
-                        onChange={(e) => handleEggKgChange(parseFloat(e.target.value) || 0)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden font-bold"
+                        onChange={(e) => handleEggKgChange(Number(e.target.value))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-amber-500 font-bold"
                         required
                       />
                     </div>
-                    <div>
-                      <label className="block text-slate-400 text-[11px] mb-1">
-                        Jumlah Butir:
-                      </label>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-slate-300">Jumlah Butir (est):</label>
                       <input
                         type="number"
                         min="0"
                         value={recordEggCount}
-                        onChange={(e) => handleEggCountChange(parseInt(e.target.value) || 0)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden font-bold"
+                        onChange={(e) => setRecordEggCount(Number(e.target.value))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-amber-500 font-bold"
                         required
                       />
                     </div>
                   </div>
+                  <div className="space-y-1 pt-1">
+                    <label className="text-[11px] text-slate-300">Telur Retak / Bentes (kg):</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={recordBrokenKg}
+                      onChange={(e) => setRecordBrokenKg(Number(e.target.value))}
+                      className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-slate-300 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
                 </div>
 
-                {/* 4. Telur Retak / Bentes */}
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">
-                    Telur Retak / Bentes (kg):
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    value={recordBrokenKg}
-                    onChange={(e) => setRecordBrokenKg(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden"
-                  />
-                </div>
-
-                {/* 5. Pakan Terpakai & Jenis Ransum */}
-                <div className="p-3 rounded-2xl bg-[#0A1410] border border-[#1E352B] space-y-2.5">
+                {/* Konsumsi Pakan & Resep */}
+                <div className="p-3 rounded-xl bg-[#09140f] border border-[#1E352B] space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-300 font-bold flex items-center gap-1.5">
-                      <Scale className="w-3.5 h-3.5 text-teal-400" />
-                      Konsumsi Pakan:
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                      Konsumsi Pakan Hari Ini:
                     </span>
-                    <span className="text-[11px] text-teal-300 font-semibold">
-                      Intake: {liveFormPreview.intake} g/ekor • FCR: {liveFormPreview.fcr}
+                    <span className="text-[10px] font-bold text-emerald-300">
+                      Est. FCR: {formPreview.fcr} ({formPreview.feedIntake} g/ekor)
                     </span>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-slate-400 text-[11px] mb-1">
-                        Pakan Terpakai (kg):
-                      </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-slate-300">Jumlah Pakan (kg):</label>
                       <input
                         type="number"
-                        step="0.1"
+                        step="0.5"
                         min="0"
                         value={recordFeedKg}
-                        onChange={(e) => setRecordFeedKg(parseFloat(e.target.value) || 0)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden font-bold"
+                        onChange={(e) => setRecordFeedKg(Number(e.target.value))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-emerald-500 font-bold"
                         required
                       />
                     </div>
-
-                    <div>
-                      <label className="block text-slate-400 text-[11px] mb-1">
-                        Jenis Ransum:
-                      </label>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-slate-300">Resep Ransum:</label>
                       <select
                         value={recordFeedType}
                         onChange={(e) => setRecordFeedType(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden cursor-pointer"
+                        className="w-full px-2 py-1.5 rounded-lg bg-[#0F1D17] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 text-xs truncate"
                       >
+                        <option value="Ransum be-ternak AI #1">Ransum be-ternak AI #1</option>
+                        <option value="Ransum be-ternak AI #2">Ransum be-ternak AI #2</option>
                         {savedRansums.map((r) => (
-                          <option key={r.id} value={r.title} className="bg-[#0A1410] text-white">
-                            {r.title} (Rp {r.total_cost_per_kg.toLocaleString('id-ID')}/kg)
+                          <option key={r.id} value={r.title}>
+                            {r.title}
                           </option>
                         ))}
-                        <option value="Ransum be-ternak AI #1" className="bg-[#0A1410] text-white">
-                          Ransum be-ternak AI #1
-                        </option>
-                        <option value="Ransum be-ternak AI #2" className="bg-[#0A1410] text-white">
-                          Ransum be-ternak AI #2
-                        </option>
-                        <option value="Pakan Pabrikan Komplit" className="bg-[#0A1410] text-white">
-                          Pakan Pabrikan Komplit
-                        </option>
+                        <option value="Konsentrat Pabrikan Komplit">Konsentrat Pabrikan Komplit</option>
                       </select>
                     </div>
                   </div>
                 </div>
 
-                {/* 6. Catatan Kondisi Kandang */}
-                <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">
-                    Kondisi Kandang & Perlakuan:
-                  </label>
-                  {/* Preset Pills */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {[
-                      'Normal',
-                      'Vitamin Anti-Stres',
-                      'Vaksin ND-IB',
-                      'Heat Stress',
-                      'Sakit / Isolasi',
-                    ].map((cond) => (
-                      <button
-                        key={cond}
-                        type="button"
-                        onClick={() => setRecordCondition(cond)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
-                          recordCondition === cond
-                            ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
-                            : 'bg-[#0A1410] text-slate-400 hover:text-white border border-[#1E352B]'
-                        }`}
-                      >
-                        {cond}
-                      </button>
-                    ))}
+                {/* Kondisi Kandang & Catatan Tambahan (Bisa auto-fill dari AI Health Vision) */}
+                <div className="space-y-2">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
+                      <span>Kondisi Umum / Status Cuaca:</span>
+                      {recordCondition !== 'Normal' && (
+                        <span className="text-[10px] text-amber-400 font-bold">
+                          Status Khusus Terpilih
+                        </span>
+                      )}
+                    </label>
+                    <select
+                      value={recordCondition}
+                      onChange={(e) => setRecordCondition(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
+                    >
+                      <option value="Normal">Normal (Sehat Optimal)</option>
+                      <option value="Vitamin Anti-Stres">Diberikan Vitamin Anti-Stres</option>
+                      <option value="Heat Stress">Heat Stress (Suhu Siang Panas)</option>
+                      <option value="Vaksin ND-IB">Jadwal Vaksinasi ND-IB</option>
+                      <option value="Sakit / Perlu Karantina">Sakit / Perlu Karantina & Pengobatan</option>
+                    </select>
                   </div>
 
-                  <input
-                    type="text"
-                    value={recordNotes}
-                    onChange={(e) => setRecordNotes(e.target.value)}
-                    placeholder="Catatan tambahan (opsional, misal: pembersihan litter...)"
-                    className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden text-xs mt-1"
-                  />
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                        Catatan Khusus (Tersinkron AI Vision):
+                      </span>
+                      {recordNotes && (
+                        <button
+                          type="button"
+                          onClick={() => setRecordNotes('')}
+                          className="text-[10px] text-slate-400 hover:text-rose-400"
+                        >
+                          Hapus Catatan
+                        </button>
+                      )}
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={recordNotes}
+                      onChange={(e) => setRecordNotes(e.target.value)}
+                      placeholder="Catatan tambahan penanganan pakan, kebersihan kotoran, atau hasil AI Vision..."
+                      className="w-full px-3 py-2 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 focus:outline-none focus:border-emerald-500 text-xs"
+                    />
+                  </div>
                 </div>
 
-                {/* Submit Button */}
+                {/* Submit button */}
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-sm shadow-xl shadow-emerald-600/25 border border-emerald-400/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   <CalendarCheck className="w-4 h-4" />
-                  <span>{isSubmitting ? 'Menyimpan...' : 'Simpan Recording Harian'}</span>
+                  <span>{isSubmitting ? 'Menyimpan Recording...' : 'Simpan Log Recording Harian'}</span>
                 </button>
               </form>
             </div>
 
-            {/* ============================================================= */}
-            {/* KOLOM KANAN (7 Kolom): UNIT KANDANG, GRAFIK & TABEL RIWAYAT   */}
-            {/* ============================================================= */}
-            <div className="lg:col-span-7 space-y-6">
-              
-              {/* SECTION: STATUS UNIT KANDANG AKTIF (GRID CARDS) */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-emerald-400" />
-                    <span>Unit Kandang Aktif ({userKandangs.length} Unit)</span>
-                  </h3>
-                  <button
-                    onClick={() => setIsAddKandangOpen(true)}
-                    className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Tambah Unit</span>
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {userKandangs.map((k) => {
-                    const isSelected = selectedKandangId === k.id;
-                    const popNow = k.current_population || k.initial_population;
-                    const dayaHidup = Number(((popNow / k.initial_population) * 100).toFixed(1));
-
-                    return (
-                      <div
-                        key={k.id}
-                        onClick={() => setSelectedKandangId(isSelected ? 'all' : k.id)}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer relative group ${
-                          isSelected
-                            ? 'bg-gradient-to-r from-[#0F1D17] to-emerald-950/40 border-emerald-500 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500'
-                            : 'bg-[#0F1D17] border-[#1E352B] hover:border-emerald-500/50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-white text-sm">{k.name}</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-medium">
-                              {k.house_type}
-                            </span>
-                          </div>
-                          {userKandangs.length > 1 && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setTargetKandangToDelete(k.id);
-                                setIsDeleteKandangOpen(true);
-                              }}
-                              title="Hapus unit kandang ini"
-                              className="p-1 rounded-lg hover:bg-rose-950/60 text-slate-500 hover:text-rose-400 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="mt-2 text-xs text-slate-400">
-                          <span>{k.strain}</span> • <span>{k.age_weeks} Minggu</span>
-                        </div>
-
-                        <div className="mt-3 flex items-baseline justify-between">
-                          <span className="text-lg font-extrabold text-white">
-                            {popNow.toLocaleString('id-ID')}
-                            <span className="text-xs font-normal text-slate-400 ml-1">
-                              / {k.initial_population.toLocaleString('id-ID')} ekor
-                            </span>
-                          </span>
-                          <span className="text-xs font-bold text-emerald-400">
-                            {dayaHidup}%
-                          </span>
-                        </div>
-
-                        {/* Progress Bar Daya Hidup */}
-                        <div className="w-full h-1.5 rounded-full bg-slate-800 mt-2 overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full"
-                            style={{ width: `${Math.min(100, dayaHidup)}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* SECTION: GRAFIK TREN PERFORMA 10 HARI TERAKHIR (RECHARTS) */}
-              <div className="p-5 rounded-3xl bg-[#0F1D17] border border-[#1E352B] shadow-xl space-y-4">
+            {/* ------------------------------------------------------------- */}
+            {/* KOLOM KANAN (7 Kolom): GRAFIK TREN HDP & FCR HARIAN            */}
+            {/* ------------------------------------------------------------- */}
+            <div className="lg:col-span-7 space-y-4">
+              {/* Chart 1: Tren HDP (%) vs Target Standar Breeder */}
+              <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#1E352B]">
                   <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <h3 className="text-xs font-bold text-white flex items-center gap-2">
                       <TrendingUp className="w-4 h-4 text-emerald-400" />
-                      <span>Tren Performa HDP (%) vs FCR Harian (10 Hari Terakhir)</span>
+                      Tren Hen-Day Production (HDP %) vs Standar Breeder
                     </h3>
-                    <p className="text-[11px] text-slate-400">
-                      Garis hijau menunjukkan HDP (%) dan garis kuning menunjukkan FCR (pakan / kg telur)
+                    <p className="text-[10px] text-slate-400">
+                      Standar puncak produksi strain Lohmann & ISA Brown (88% - 92%)
                     </p>
                   </div>
-                  <div className="flex items-center gap-3 text-xs">
-                    <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                      HDP (%)
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Realisasi HDP
                     </span>
-                    <span className="flex items-center gap-1.5 text-amber-400 font-semibold">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                      FCR Harian
+                    <span className="flex items-center gap-1 text-slate-400">
+                      <span className="w-2.5 h-0.5 bg-amber-400" /> Target Min (88%)
                     </span>
                   </div>
                 </div>
 
-                <div className="h-64 w-full">
-                  {isMounted && chartData.length > 0 ? (
+                <div className="h-56 w-full pt-2">
+                  {chartHdpData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart
-                        data={chartData}
-                        margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1E352B" opacity={0.6} />
-                        <XAxis
-                          dataKey="label"
-                          stroke="#64748b"
-                          tick={{ fill: '#94a3b8', fontSize: 11 }}
-                        />
-                        {/* Y-Axis Kiri: HDP (%) */}
-                        <YAxis
-                          yAxisId="left"
-                          domain={[80, 100]}
-                          stroke="#10b981"
-                          tick={{ fill: '#10b981', fontSize: 11 }}
-                          unit="%"
-                        />
-                        {/* Y-Axis Kanan: FCR */}
-                        <YAxis
-                          yAxisId="right"
-                          orientation="right"
-                          domain={[1.6, 2.4]}
-                          stroke="#f59e0b"
-                          tick={{ fill: '#f59e0b', fontSize: 11 }}
-                        />
+                      <AreaChart data={chartHdpData}>
+                        <defs>
+                          <linearGradient id="colorHdp" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10B981" stopOpacity={0.4} />
+                            <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1E352B" />
+                        <XAxis dataKey="label" stroke="#64748B" fontSize={10} />
+                        <YAxis domain={[75, 100]} stroke="#64748B" fontSize={10} unit="%" />
                         <Tooltip
                           contentStyle={{
                             backgroundColor: '#0A1410',
                             borderColor: '#1E352B',
                             borderRadius: '12px',
-                            color: '#fff',
-                            fontSize: '12px',
-                          }}
-                          formatter={(val: any, name: any) => {
-                            if (name === 'HDP (%)') return [`${val}%`, 'HDP (%)'];
-                            if (name === 'FCR Harian') return [val, 'FCR Harian'];
-                            return [val, name];
+                            fontSize: '11px',
                           }}
                         />
                         <Line
-                          yAxisId="left"
+                          type="monotone"
+                          dataKey="target_min"
+                          stroke="#F59E0B"
+                          strokeDasharray="4 4"
+                          strokeWidth={1.5}
+                          dot={false}
+                          name="Target Min Breeder (88%)"
+                        />
+                        <Area
                           type="monotone"
                           dataKey="hdp"
-                          name="HDP (%)"
-                          stroke="#10b981"
+                          stroke="#10B981"
                           strokeWidth={2.5}
-                          dot={{ fill: '#10b981', r: 3 }}
-                          activeDot={{ r: 5 }}
+                          fillOpacity={1}
+                          fill="url(#colorHdp)"
+                          name="HDP Aktual (%)"
                         />
-                        <Line
-                          yAxisId="right"
-                          type="monotone"
-                          dataKey="fcr"
-                          name="FCR Harian"
-                          stroke="#f59e0b"
-                          strokeWidth={2}
-                          strokeDasharray="4 4"
-                          dot={{ fill: '#f59e0b', r: 3 }}
-                        />
-                      </LineChart>
+                      </AreaChart>
                     </ResponsiveContainer>
                   ) : (
                     <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                      Memuat grafik tren recording...
+                      Belum ada data rekaman untuk ditampilkan pada grafik.
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* SECTION: TABEL LOG RIWAYAT RECORDING HARIAN */}
-              <div className="p-5 rounded-3xl bg-[#0F1D17] border border-[#1E352B] shadow-xl space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1E352B]">
+              {/* Chart 2: Konsumsi Pakan (kg) & FCR Harian */}
+              <div className="p-4 rounded-2xl bg-[#0F1D17] border border-[#1E352B] space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#1E352B]">
                   <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-emerald-400" />
-                      <span>Log Riwayat Recording ({filteredRecordings.length} Catatan)</span>
+                    <h3 className="text-xs font-bold text-white flex items-center gap-2">
+                      <Scale className="w-4 h-4 text-emerald-400" />
+                      Konsumsi Pakan Harian & Efisiensi FCR
                     </h3>
-                    <p className="text-[11px] text-slate-400">
-                      Daftar rekapan harian berurutan dari tanggal terbaru ke terlama
+                    <p className="text-[10px] text-slate-400">
+                      Rasio konversi pakan terhadap bobot telur (Target FCR &le; 2.15)
                     </p>
                   </div>
+                </div>
 
+                <div className="h-52 w-full pt-2">
+                  {chartHdpData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartHdpData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1E352B" />
+                        <XAxis dataKey="label" stroke="#64748B" fontSize={10} />
+                        <YAxis yAxisId="left" stroke="#64748B" fontSize={10} unit=" kg" />
+                        <YAxis yAxisId="right" orientation="right" domain={[1.8, 2.5]} stroke="#F59E0B" fontSize={10} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#0A1410',
+                            borderColor: '#1E352B',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                          }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '10px' }} />
+                        <Line
+                          yAxisId="left"
+                          type="monotone"
+                          dataKey="feedKg"
+                          stroke="#34D399"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          name="Pakan Terpakai (kg)"
+                        />
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="fcr"
+                          stroke="#F59E0B"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          name="FCR Harian"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-xs text-slate-500">
+                      Belum ada data pakan untuk ditampilkan.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ================================================================= */}
+          {/* SECTION: TABEL RIWAYAT RECORDING HARIAN                           */}
+          {/* ================================================================= */}
+          <div className="rounded-2xl bg-[#0F1D17] border border-[#1E352B] p-4 lg:p-5 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#1E352B]">
+              <div className="flex items-center gap-2">
+                <CalendarCheck className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-sm font-bold text-white">
+                  Riwayat Log Recording Kandang ({filteredRecordings.length} Entri)
+                </h3>
+              </div>
+
+              {/* Table search filter */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Cari tanggal / catatan..."
+                  value={searchTableQuery}
+                  onChange={(e) => setSearchTableQuery(e.target.value)}
+                  className="px-3 py-1.5 rounded-xl bg-[#091510] border border-[#1E352B] text-slate-200 text-xs focus:outline-none focus:border-emerald-500 w-44 sm:w-56"
+                />
+              </div>
+            </div>
+
+            {/* Table wrapper */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#1E352B] text-slate-400 font-semibold text-[11px] bg-[#09140f]">
+                    <th className="py-2.5 px-3">Tanggal</th>
+                    <th className="py-2.5 px-3">Kandang</th>
+                    <th className="py-2.5 px-3 text-right">Populasi</th>
+                    <th className="py-2.5 px-3 text-right">Mati / Afkir</th>
+                    <th className="py-2.5 px-3 text-right">Telur Utuh</th>
+                    <th className="py-2.5 px-3 text-right">HDP (%)</th>
+                    <th className="py-2.5 px-3 text-right">Pakan (kg)</th>
+                    <th className="py-2.5 px-3 text-right">FCR</th>
+                    <th className="py-2.5 px-3">Kondisi / Catatan AI</th>
+                    <th className="py-2.5 px-3 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1E352B]">
+                  {filteredRecordings.length > 0 ? (
+                    filteredRecordings.map((log) => (
+                      <tr key={log.id} className="hover:bg-[#12241b] transition-colors">
+                        <td className="py-2.5 px-3 font-semibold text-slate-200 whitespace-nowrap">
+                          {log.date}
+                        </td>
+                        <td className="py-2.5 px-3 font-medium text-emerald-300 whitespace-nowrap">
+                          {log.kandang_name}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-medium text-slate-300">
+                          {log.final_population.toLocaleString('id-ID')}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          {log.dead_count > 0 || log.cull_count > 0 ? (
+                            <span className="text-rose-400 font-bold">
+                              {log.dead_count} / {log.cull_count}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500">0</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold text-white whitespace-nowrap">
+                          {log.intact_egg_kg.toFixed(1)} kg ({log.intact_egg_count.toLocaleString('id-ID')} btr)
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              log.hdp_percent >= 88
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            }`}
+                          >
+                            {log.hdp_percent.toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-semibold text-slate-300">
+                          {log.feed_kg} kg
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              log.fcr <= 2.10
+                                ? 'bg-emerald-500/20 text-emerald-300'
+                                : 'bg-blue-500/20 text-blue-300'
+                            }`}
+                          >
+                            {log.fcr.toFixed(2)}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 max-w-xs">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-semibold text-slate-300 text-[11px] truncate">
+                              {log.condition_note}
+                            </span>
+                            {log.notes && (
+                              <span className="text-[10px] text-slate-400 truncate" title={log.notes}>
+                                {log.notes}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <button
+                            onClick={() => handleDeleteLog(log.id)}
+                            className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                            title="Hapus baris log ini"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={10} className="py-8 text-center text-slate-500">
+                        Tidak ada riwayat recording yang cocok dengan filter.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ================================================================= */}
+          {/* MODAL: TAMBAH KANDANG BARU                                        */}
+          {/* ================================================================= */}
+          {isAddKandangOpen && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-[#0A1410] border border-emerald-500/40 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl animate-in zoom-in-95">
+                <div className="flex items-center justify-between pb-2 border-b border-[#1E352B]">
                   <div className="flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-emerald-400" />
+                    <h3 className="text-sm font-bold text-white">Tambah Unit Kandang Baru</h3>
+                  </div>
+                  <button
+                    onClick={() => setIsAddKandangOpen(false)}
+                    className="text-slate-400 hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleCreateKandang} className="space-y-3 text-xs">
+                  <div className="space-y-1">
+                    <label className="text-slate-300 font-semibold">Nama Unit Kandang:</label>
                     <input
                       type="text"
-                      placeholder="Cari tanggal / ransum..."
-                      value={searchTableQuery}
-                      onChange={(e) => setSearchTableQuery(e.target.value)}
-                      className="px-3 py-1.5 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white text-xs outline-hidden focus:border-emerald-500 w-44"
+                      placeholder="Contoh: Kandang C (Closed House)"
+                      value={newKandangName}
+                      onChange={(e) => setNewKandangName(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-emerald-500"
+                      required
                     />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="space-y-1">
+                      <label className="text-slate-300 font-semibold">Tipe Kandang:</label>
+                      <select
+                        value={newKandangType}
+                        onChange={(e) => setNewKandangType(e.target.value as KandangHouseType)}
+                        className="w-full px-3 py-2 rounded-xl bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="Open House">Open House</option>
+                        <option value="Semi-Closed">Semi-Closed</option>
+                        <option value="Closed House">Closed House</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-slate-300 font-semibold">Strain Ayam:</label>
+                      <input
+                        type="text"
+                        value={newKandangStrain}
+                        onChange={(e) => setNewKandangStrain(e.target.value)}
+                        placeholder="ISA Brown / Lohmann"
+                        className="w-full px-3 py-2 rounded-xl bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-emerald-500"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="space-y-1">
+                      <label className="text-slate-300 font-semibold">Populasi Awal (ekor):</label>
+                      <input
+                        type="number"
+                        min="100"
+                        value={newKandangPop}
+                        onChange={(e) => setNewKandangPop(Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-emerald-500 font-bold"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-slate-300 font-semibold">Umur (Minggu):</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={newKandangAge}
+                        onChange={(e) => setNewKandangAge(Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-emerald-500 font-bold"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-300 font-semibold">Tanggal Chick-In / Pullet In:</label>
+                    <input
+                      type="date"
+                      value={newKandangDate}
+                      onChange={(e) => setNewKandangDate(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-emerald-500"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#1E352B]">
                     <button
-                      onClick={handleExportCsv}
-                      className="p-2 rounded-xl bg-[#0A1410] border border-[#1E352B] hover:border-emerald-500/40 text-emerald-400 transition-all cursor-pointer"
-                      title="Download CSV"
+                      type="button"
+                      onClick={() => setIsAddKandangOpen(false)}
+                      className="px-3 py-2 rounded-xl text-slate-400 hover:text-white"
                     >
-                      <Download className="w-3.5 h-3.5" />
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-md shadow-emerald-500/20"
+                    >
+                      Simpan Unit Kandang
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================= */}
+          {/* MODAL: HAPUS UNIT KANDANG                                         */}
+          {/* ================================================================= */}
+          {isDeleteKandangOpen && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-[#0A1410] border border-rose-600/40 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl animate-in zoom-in-95">
+                <div className="flex items-center justify-between pb-2 border-b border-[#1E352B]">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-rose-400" />
+                    <h3 className="text-sm font-bold text-white">Konfirmasi Hapus Unit Kandang</h3>
+                  </div>
+                  <button
+                    onClick={() => setIsDeleteKandangOpen(false)}
+                    className="text-slate-400 hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <p className="text-slate-300">
+                    Pilih unit kandang yang ingin dihapus. Semua riwayat recording harian pada unit kandang ini akan ikut terhapus.
+                  </p>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-300 font-semibold">Pilih Unit Kandang:</label>
+                    <select
+                      value={targetKandangToDelete}
+                      onChange={(e) => setTargetKandangToDelete(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#0F1D17] border border-[#1E352B] text-white focus:outline-none focus:border-rose-500 font-bold"
+                    >
+                      {userKandangs.map((k) => (
+                        <option key={k.id} value={k.id}>
+                          {k.name} ({k.house_type} - {k.current_population || k.initial_population} ekor)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800/40 text-rose-300 text-[11px] leading-relaxed">
+                    ⚠️ <strong>Perhatian:</strong> Tindakan ini permanen. Minimal harus tersisa 1 unit kandang aktif di peternakan Anda.
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#1E352B]">
+                    <button
+                      type="button"
+                      onClick={() => setIsDeleteKandangOpen(false)}
+                      className="px-3 py-2 rounded-xl text-slate-400 hover:text-white"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteKandang}
+                      className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-md shadow-rose-600/30"
+                    >
+                      Hapus Permanen
                     </button>
                   </div>
                 </div>
-
-                {/* Table Container */}
-                <div className="overflow-x-auto no-scrollbar rounded-xl border border-[#1E352B]">
-                  <table className="w-full text-left text-xs text-slate-300">
-                    <thead className="bg-[#0A1410] text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-[#1E352B]">
-                      <tr>
-                        <th className="px-3 py-3">Tanggal</th>
-                        <th className="px-3 py-3">Kandang</th>
-                        <th className="px-3 py-3 text-right">Populasi</th>
-                        <th className="px-3 py-3 text-center">Mati/Afkir</th>
-                        <th className="px-3 py-3 text-right">Telur (kg/btr)</th>
-                        <th className="px-3 py-3 text-center">HDP</th>
-                        <th className="px-3 py-3 text-right">Pakan (Intake)</th>
-                        <th className="px-3 py-3 text-center">FCR</th>
-                        <th className="px-3 py-3">Kondisi</th>
-                        <th className="px-2 py-3 text-center">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#1E352B]/60">
-                      {filteredRecordings.length === 0 ? (
-                        <tr>
-                          <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
-                            Belum ada riwayat recording untuk filter ini.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredRecordings.map((r) => (
-                          <tr key={r.id} className="hover:bg-[#0A1410]/80 transition-colors">
-                            <td className="px-3 py-2.5 font-medium text-white whitespace-nowrap">
-                              {r.date}
-                            </td>
-                            <td className="px-3 py-2.5 font-semibold text-emerald-300 whitespace-nowrap">
-                              {r.kandang_name}
-                            </td>
-                            <td className="px-3 py-2.5 text-right font-medium whitespace-nowrap">
-                              {r.final_population.toLocaleString('id-ID')}
-                            </td>
-                            <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                              <span
-                                className={`text-[11px] font-semibold ${
-                                  r.dead_count > 0 ? 'text-rose-400' : 'text-slate-400'
-                                }`}
-                              >
-                                {r.dead_count}
-                              </span>
-                              <span className="text-slate-500 mx-0.5">/</span>
-                              <span
-                                className={`text-[11px] font-semibold ${
-                                  r.cull_count > 0 ? 'text-amber-400' : 'text-slate-400'
-                                }`}
-                              >
-                                {r.cull_count}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                              <span className="font-bold text-white">{r.intact_egg_kg} kg</span>
-                              <span className="text-[10px] text-slate-400 block">
-                                {r.intact_egg_count} btr
-                              </span>
-                            </td>
-                            <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-                                {r.hdp_percent}%
-                              </span>
-                            </td>
-                            <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                              <span className="font-medium text-white">{r.feed_kg} kg</span>
-                              <span className="text-[10px] text-teal-400 block">
-                                {r.feed_intake_gram} g/ekor
-                              </span>
-                            </td>
-                            <td className="px-3 py-2.5 text-center whitespace-nowrap font-bold">
-                              <span
-                                className={`${
-                                  r.fcr <= 2.1
-                                    ? 'text-emerald-400'
-                                    : r.fcr <= 2.3
-                                    ? 'text-teal-400'
-                                    : 'text-amber-400'
-                                }`}
-                              >
-                                {r.fcr}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2.5 text-[11px] whitespace-nowrap">
-                              <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300">
-                                {r.condition_note}
-                              </span>
-                            </td>
-                            <td className="px-2 py-2.5 text-center whitespace-nowrap">
-                              <button
-                                onClick={() => handleDeleteLog(r.id, r.date, r.kandang_name)}
-                                title="Hapus baris ini"
-                                className="p-1 rounded-md hover:bg-rose-950/60 text-slate-500 hover:text-rose-400 transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
               </div>
             </div>
-          </div>
+          )}
         </main>
       </div>
-
-      {/* ===================================================================== */}
-      {/* MODAL: TAMBAH UNIT KANDANG BARU                                       */}
-      {/* ===================================================================== */}
-      {isAddKandangOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-[#0F1D17] border border-[#1E352B] rounded-3xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#1E352B]">
-              <div className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-base font-bold text-white">Tambah Unit Kandang Baru</h3>
-              </div>
-              <button
-                onClick={() => setIsAddKandangOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateKandang} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">
-                  Nama Unit Kandang:
-                </label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Kandang C, Kandang Barat"
-                  value={newKandangName}
-                  onChange={(e) => setNewKandangName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden font-medium"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">
-                    Tipe Kandang:
-                  </label>
-                  <select
-                    value={newKandangType}
-                    onChange={(e) => setNewKandangType(e.target.value as KandangHouseType)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden font-medium cursor-pointer"
-                  >
-                    <option value="Open House">Open House</option>
-                    <option value="Semi-Closed">Semi-Closed</option>
-                    <option value="Closed House">Closed House</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">
-                    Strain Ayam:
-                  </label>
-                  <input
-                    type="text"
-                    value={newKandangStrain}
-                    onChange={(e) => setNewKandangStrain(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">
-                    Populasi Awal (Ekor):
-                  </label>
-                  <input
-                    type="number"
-                    min="100"
-                    step="50"
-                    value={newKandangPop}
-                    onChange={(e) => setNewKandangPop(parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden font-bold"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">
-                    Umur Saat Ini (Minggu):
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="120"
-                    value={newKandangAge}
-                    onChange={(e) => setNewKandangAge(parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">
-                  Tanggal Chick-In / Pullet:
-                </label>
-                <input
-                  type="date"
-                  value={newKandangDate}
-                  onChange={(e) => setNewKandangDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-emerald-500 outline-hidden"
-                  required
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#1E352B]">
-                <button
-                  type="button"
-                  onClick={() => setIsAddKandangOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white font-semibold cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md shadow-emerald-600/30 cursor-pointer"
-                >
-                  Simpan Unit Kandang
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* MODAL: HAPUS UNIT KANDANG                                             */}
-      {/* ===================================================================== */}
-      {isDeleteKandangOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-[#0F1D17] border border-rose-900/60 rounded-3xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#1E352B]">
-              <div className="flex items-center gap-2 text-rose-400">
-                <Trash2 className="w-5 h-5" />
-                <h3 className="text-base font-bold text-white">Hapus Unit Kandang</h3>
-              </div>
-              <button
-                onClick={() => setIsDeleteKandangOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <p className="text-slate-300">
-                Pilih unit kandang yang ingin dihapus. Menghapus unit kandang juga akan menghapus seluruh data log recording yang terkait secara permanen.
-              </p>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">
-                  Pilih Kandang:
-                </label>
-                <select
-                  value={targetKandangToDelete}
-                  onChange={(e) => setTargetKandangToDelete(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#070d0b] border border-[#1E352B] text-white focus:border-rose-500 outline-hidden cursor-pointer"
-                >
-                  {userKandangs.map((k) => {
-                    const logsCount = recordings.filter((r) => r.kandang_id === k.id).length;
-                    return (
-                      <option key={k.id} value={k.id} className="bg-[#0A1410] text-white">
-                        {k.name} ({logsCount} catatan recording)
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              {userKandangs.length <= 1 && (
-                <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-800/60 text-amber-300 text-[11px] flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span>
-                    Proteksi: Peternakan wajib memiliki minimal 1 unit kandang aktif. Unit terakhir tidak dapat dihapus.
-                  </span>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#1E352B]">
-                <button
-                  type="button"
-                  onClick={() => setIsDeleteKandangOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white font-semibold cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  disabled={userKandangs.length <= 1}
-                  onClick={handleDeleteKandang}
-                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-md shadow-rose-600/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Ya, Hapus Kandang
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

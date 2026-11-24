@@ -36,7 +36,7 @@ import {
   Store,
   MessageCircle,
   Calculator,
-  ClipboardList,
+  ScanEye,
 } from 'lucide-react';
 
 type PeternakTab = 'overview' | 'recipes' | 'nearby_feeds' | 'subscription' | 'verification_status';
@@ -194,9 +194,9 @@ export default function PeternakDashboardPage() {
         },
         {
           id: 'recording',
-          label: 'Recording Harian',
-          icon: ClipboardList,
-          badge: 'Harian',
+          label: 'AI Health & Recording',
+          icon: ScanEye,
+          badge: 'AI Vision',
           badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold',
           href: '/dashboard/peternak/recording',
         },

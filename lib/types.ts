@@ -385,4 +385,14 @@ export interface CreateRecordingPayload {
   notes?: string;
 }
 
+export interface HealthScanResult {
+  status_kondisi: string;
+  tingkat_risiko: 'Normal' | 'Waspada' | 'Kritis';
+  dugaan_gejala: string;
+  rekomendasi_tindakan: string;
+  model_used?: string;
+  scanned_at?: string;
+}
+
+
 
