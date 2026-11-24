@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { UserProfile } from '@/lib/types';
 import {
   resendActivationLink,
   getActivationUrl,
   logoutUser,
+  loadUsersFromStorage,
+  sendActivationEmailApi,
 } from '@/lib/subscription-store';
 import {
   ShieldAlert,
@@ -34,18 +36,79 @@ export default function UnverifiedAccountNotice({
   featureName = 'Fitur Manajemen & Portal be-ternak',
   onRefresh,
 }: UnverifiedAccountNoticeProps) {
+  const [currentUserState, setCurrentUserState] = useState<UserProfile>(user);
   const [isResending, setIsResending] = useState(false);
   const [resendNotice, setResendNotice] = useState<string | null>(null);
 
-  const isAdminApproved = Boolean(user.admin_verified);
-  const activationUrl = getActivationUrl(user);
+  // Sync prop changes
+  useEffect(() => {
+    setCurrentUserState(user);
+  }, [user]);
 
-  const handleResend = () => {
+  // Real-time synchronization: deteksi jika status akun berubah di tab lain atau setelah email diklik
+  useEffect(() => {
+    const checkFreshStatus = () => {
+      const allUsers = loadUsersFromStorage();
+      const updated = allUsers.find(
+        (u) => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase()
+      );
+      if (updated) {
+        setCurrentUserState(updated);
+        // Jika akun telah aktif, otomatis refresh halaman untuk menampilkan dashboard aktif
+        if (updated.is_verified) {
+          window.location.reload();
+        }
+      }
+    };
+
+    window.addEventListener('storage', checkFreshStatus);
+    window.addEventListener('focus', checkFreshStatus);
+    const poller = setInterval(checkFreshStatus, 2000);
+
+    return () => {
+      window.removeEventListener('storage', checkFreshStatus);
+      window.removeEventListener('focus', checkFreshStatus);
+      clearInterval(poller);
+    };
+  }, [user.id, user.email]);
+
+  const isAdminApproved = Boolean(currentUserState.admin_verified);
+  const isAccountActive = Boolean(currentUserState.is_verified);
+  const activationUrl = getActivationUrl(currentUserState);
+
+  const handleManualRefresh = () => {
+    const allUsers = loadUsersFromStorage();
+    const updated = allUsers.find(
+      (u) => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase()
+    );
+    if (updated) {
+      setCurrentUserState(updated);
+      if (updated.is_verified) {
+        window.location.reload();
+        return;
+      }
+    }
+    if (onRefresh) onRefresh();
+    else window.location.reload();
+  };
+
+  const handleResend = async () => {
     setIsResending(true);
     setResendNotice(null);
     try {
-      const res = resendActivationLink(user.id);
-      setResendNotice(`✓ Tautan aktivasi email berhasil diperbarui dan dikirim ulang ke ${user.email}.`);
+      const res = resendActivationLink(currentUserState.id);
+      setCurrentUserState(res.user);
+
+      // Panggil API kirim email nyata via SMTP/Resend
+      const emailRes = await sendActivationEmailApi(res.user);
+      if (emailRes.success) {
+        setResendNotice(`✓ Tautan aktivasi email berhasil dikirimkan ke ${res.user.email}. Silakan cek kotak masuk atau folder spam.`);
+      } else if (emailRes.notConfigured) {
+        setResendNotice(`✓ Tautan aktivasi email baru berhasil dibuat. (SMTP belum diisi di .env.local, gunakan tombol "Buka Tautan Aktivasi" di bawah).`);
+      } else {
+        setResendNotice(`✓ Tautan dibuat. Status pengiriman: ${emailRes.error || 'Server email sibuk'}.`);
+      }
+
       if (onRefresh) onRefresh();
     } catch (err: unknown) {
       setResendNotice(err instanceof Error ? err.message : 'Gagal mengirim ulang email aktivasi.');
@@ -78,10 +141,7 @@ export default function UnverifiedAccountNotice({
         </div>
 
         <button
-          onClick={() => {
-            if (onRefresh) onRefresh();
-            else window.location.reload();
-          }}
+          onClick={handleManualRefresh}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-semibold cursor-pointer shrink-0 transition-all"
         >
           <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />

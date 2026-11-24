@@ -12,6 +12,7 @@ import {
 } from '@/lib/types';
 import {
   loadUsersFromStorage,
+  getActiveUserId,
   submitSubscriptionPayment,
   loadFeedSourcesFromStorage,
   addFeedSourceToStorage,
@@ -82,6 +83,31 @@ export default function PemasokDashboardPage() {
 
   useEffect(() => {
     setMounted(true);
+    const syncSupplier = () => {
+      const loadedUsers = loadUsersFromStorage();
+      setUsers(loadedUsers);
+      const activeId = getActiveUserId();
+      let supplier = loadedUsers.find((u) => u.id === activeId && u.role === 'pemilik_pakan');
+      if (!supplier) {
+        supplier = loadedUsers.find((u) => u.role === 'pemilik_pakan') || DEFAULT_SUPPLIER_PROFILE;
+      }
+      if (supplier) {
+        setCurrentUser({ ...supplier });
+        setProducts(loadProductsForSupplier(supplier.id));
+      }
+    };
+
+    syncSupplier();
+
+    window.addEventListener('storage', syncSupplier);
+    window.addEventListener('focus', syncSupplier);
+    const poller = setInterval(syncSupplier, 2000);
+
+    return () => {
+      window.removeEventListener('storage', syncSupplier);
+      window.removeEventListener('focus', syncSupplier);
+      clearInterval(poller);
+    };
   }, []);
 
   // Modal & Form State

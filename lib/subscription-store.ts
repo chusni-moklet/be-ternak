@@ -587,6 +587,8 @@ export function toggleUserVerification(
   const isNowVerified = !user.is_verified;
 
   user.is_verified = isNowVerified;
+  user.admin_verified = isNowVerified;
+  user.email_verified_at = isNowVerified ? new Date().toISOString() : null;
   user.verified_at = isNowVerified ? new Date().toISOString() : null;
   user.verified_by = isNowVerified ? adminName : null;
 
@@ -599,6 +601,34 @@ export function toggleUserVerification(
   users[userIndex] = user;
   saveUsersToStorage(users);
   return user;
+}
+
+/**
+ * Panggil API Route untuk mengirim email aktivasi resmi ke pendaftar
+ */
+export async function sendActivationEmailApi(
+  user: UserProfile
+): Promise<{ success: boolean; notConfigured?: boolean; provider?: string; message?: string; error?: string }> {
+  try {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+    const activationUrl = `${origin}${getActivationUrl(user)}`;
+    const res = await fetch('/api/auth/send-activation-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: user.email,
+        name: user.name,
+        businessName: user.business_name,
+        activationUrl,
+      }),
+    });
+    return await res.json();
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Gagal menghubungi server email be-ternak.',
+    };
+  }
 }
 
 /**

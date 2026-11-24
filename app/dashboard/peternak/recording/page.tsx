@@ -191,6 +191,23 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
       }
     }
 
+    const syncUser = () => {
+      const freshUsers = loadUsersFromStorage();
+      setUsers(freshUsers);
+      const activeId = getActiveUserId();
+      let freshUser = freshUsers.find((u) => u.id === activeId && u.role === 'peternak');
+      if (!freshUser) {
+        freshUser = freshUsers.find((u) => u.role === 'peternak');
+      }
+      if (freshUser) {
+        setCurrentUser({ ...freshUser });
+      }
+    };
+
+    window.addEventListener('storage', syncUser);
+    window.addEventListener('focus', syncUser);
+    const poller = setInterval(syncUser, 2000);
+
     // Cek jika ada hasil AI Health Scan yang ditransfer dari halaman /dashboard/peternak/health-scan
     try {
       const pendingCond = localStorage.getItem('petapakan_pending_ai_condition');
@@ -215,6 +232,12 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
         }, 300);
       }
     } catch {}
+
+    return () => {
+      window.removeEventListener('storage', syncUser);
+      window.removeEventListener('focus', syncUser);
+      clearInterval(poller);
+    };
   }, []);
 
   // Helper Switcher Akun Demo

@@ -19,6 +19,7 @@ import {
   deleteFeedSourceFromStorage,
   getActivationUrl,
   resendActivationLink,
+  sendActivationEmailApi,
 } from '@/lib/subscription-store';
 import {
   ShieldCheck,
@@ -80,6 +81,11 @@ export default function AdminDashboardPage() {
   const [feedFilter, setFeedFilter] = useState<'all' | 'pending' | 'verified'>('all');
   const [pendingUserFilter, setPendingUserFilter] = useState<'all' | 'need_admin' | 'need_email'>('all');
   const [activationModalData, setActivationModalData] = useState<{ user: UserProfile; activationUrl: string } | null>(null);
+  const [emailDispatchStatus, setEmailDispatchStatus] = useState<{
+    status: 'idle' | 'sending' | 'sent' | 'not_configured' | 'error';
+    message?: string;
+    provider?: string;
+  }>({ status: 'idle' });
   const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'info'; message: string } | null>(null);
@@ -226,9 +232,31 @@ export default function AdminDashboardPage() {
           user: updated,
           activationUrl,
         });
-        setNotification({
-          type: 'success',
-          message: `Verifikasi pendaftaran "${updated.name}" disetujui! Email aktivasi telah dikirim ke ${updated.email}.`,
+
+        // Trigger pengiriman email aktivasi sesungguhnya via API
+        setEmailDispatchStatus({ status: 'sending', message: `Sedang mengirim email aktivasi ke ${updated.email}...` });
+        sendActivationEmailApi(updated).then((res) => {
+          if (res.success) {
+            setEmailDispatchStatus({
+              status: 'sent',
+              provider: res.provider,
+              message: `✓ Email aktivasi berhasil dikirim via ${res.provider?.toUpperCase()} ke ${updated.email}!`,
+            });
+            setNotification({
+              type: 'success',
+              message: `✓ Email aktivasi telah dikirimkan ke ${updated.email}!`,
+            });
+          } else if (res.notConfigured) {
+            setEmailDispatchStatus({
+              status: 'not_configured',
+              message: `Layanan SMTP belum diisi di .env.local. Gunakan tombol di bawah ini untuk aktivasi langsung atau salin link.`,
+            });
+          } else {
+            setEmailDispatchStatus({
+              status: 'error',
+              message: `Gagal mengirim email: ${res.error}`,
+            });
+          }
         });
       } else {
         setNotification({
@@ -254,6 +282,28 @@ export default function AdminDashboardPage() {
         user: res.user,
         activationUrl: res.activationUrl,
       });
+
+      setEmailDispatchStatus({ status: 'sending', message: `Sedang mengirim ulang email ke ${res.user.email}...` });
+      sendActivationEmailApi(res.user).then((emailRes) => {
+        if (emailRes.success) {
+          setEmailDispatchStatus({
+            status: 'sent',
+            provider: emailRes.provider,
+            message: `✓ Email aktivasi baru berhasil dikirim via ${emailRes.provider?.toUpperCase()} ke ${res.user.email}!`,
+          });
+        } else if (emailRes.notConfigured) {
+          setEmailDispatchStatus({
+            status: 'not_configured',
+            message: `Layanan SMTP belum diisi di .env.local. Gunakan tautan langsung di bawah.`,
+          });
+        } else {
+          setEmailDispatchStatus({
+            status: 'error',
+            message: `Gagal mengirim email: ${emailRes.error}`,
+          });
+        }
+      });
+
       setNotification({
         type: 'success',
         message: `Tautan aktivasi baru berhasil dikirim ulang ke ${res.user.email}!`,
@@ -2085,11 +2135,41 @@ export default function AdminDashboardPage() {
                 <span className="font-semibold text-white">{activationModalData.user.name} ({activationModalData.user.business_name})</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Status Saat Ini:</span>
+                <span className="text-slate-400">Status Akun:</span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  Menunggu Klik Link Email
+                  Menunggu Aktivasi Email
                 </span>
               </div>
+
+              {/* Status Pengiriman Email Nyata */}
+              <div className="pt-2 border-t border-slate-800/80">
+                <span className="text-slate-400 block mb-1 font-semibold">Status Pengiriman Email:</span>
+                {emailDispatchStatus.status === 'sending' ? (
+                  <div className="p-2 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-300 text-[11px] flex items-center gap-2">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Sedang mengirimkan email aktivasi ke {activationModalData.user.email}...</span>
+                  </div>
+                ) : emailDispatchStatus.status === 'sent' ? (
+                  <div className="p-2 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-[11px] flex items-center gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>{emailDispatchStatus.message}</span>
+                  </div>
+                ) : emailDispatchStatus.status === 'not_configured' ? (
+                  <div className="p-2 rounded-xl bg-amber-950/30 border border-amber-500/30 text-amber-200 text-[11px] space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                      <span>⚠️ Kredensial SMTP Belum Diisi di .env.local</span>
+                    </div>
+                    <p className="text-[10px] text-slate-300">
+                      Isi <strong>SMTP_USER</strong> dan <strong>SMTP_PASS</strong> (Gmail App Password) di <code className="bg-slate-950 px-1 py-0.5 rounded">.env.local</code> agar email otomatis masuk ke inbox. Anda juga dapat langsung mengaktifkan via tombol di bawah.
+                    </p>
+                  </div>
+                ) : emailDispatchStatus.status === 'error' ? (
+                  <div className="p-2 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-[11px]">
+                    {emailDispatchStatus.message}
+                  </div>
+                ) : null}
+              </div>
+
               <div className="pt-2 border-t border-slate-800/80">
                 <span className="text-slate-400 block mb-1.5 font-semibold">Tautan Aktivasi Resmi:</span>
                 <div className="p-2.5 rounded-xl bg-slate-950 font-mono text-[11px] text-cyan-200 break-all select-all border border-slate-800">
@@ -2101,37 +2181,57 @@ export default function AdminDashboardPage() {
             <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-900/50 text-[11px] text-cyan-300 flex items-start gap-2">
               <Sparkles className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
               <span>
-                Sesuai SOP keamanan, akun pendaftar <strong>belum aktif</strong> sampai pendaftar mengeklik tautan aktivasi di atas. Anda dapat menyalin tautan atau membuka langsung untuk simulasi pengujian.
+                Akun pendaftar akan resmi aktif setelah tautan aktivasi di atas diklik. Anda dapat menyalin tautan, membukanya langsung, atau menekan tombol <strong>Aktifkan Langsung</strong> di bawah.
               </span>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-2">
+            <div className="flex flex-col gap-2 pt-2">
+              <div className="flex flex-col sm:flex-row items-center gap-2">
+                <button
+                  onClick={() => {
+                    const url = typeof window !== 'undefined'
+                      ? `${window.location.origin}${activationModalData.activationUrl}`
+                      : activationModalData.activationUrl;
+                    navigator.clipboard.writeText(url);
+                    setNotification({
+                      type: 'success',
+                      message: 'Tautan aktivasi berhasil disalin ke clipboard!',
+                    });
+                    setTimeout(() => setNotification(null), 3000);
+                  }}
+                  className="w-full sm:flex-1 py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                >
+                  <Copy className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Salin Link</span>
+                </button>
+
+                <Link
+                  href={activationModalData.activationUrl}
+                  target="_blank"
+                  className="w-full sm:flex-1 py-2.5 px-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-500/20 transition-all"
+                >
+                  <span>Buka Link (Aktivasi)</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              {/* Tombol Bypass: Admin Aktifkan Langsung */}
               <button
                 onClick={() => {
-                  const url = typeof window !== 'undefined'
-                    ? `${window.location.origin}${activationModalData.activationUrl}`
-                    : activationModalData.activationUrl;
-                  navigator.clipboard.writeText(url);
+                  const updated = toggleUserVerification(activationModalData.user.id);
+                  setUsers([...loadUsersFromStorage()]);
+                  setActivationModalData(null);
                   setNotification({
                     type: 'success',
-                    message: 'Tautan aktivasi berhasil disalin ke clipboard!',
+                    message: `Akun "${updated.name}" (${updated.business_name}) berhasil diaktifkan langsung!`,
                   });
-                  setTimeout(() => setNotification(null), 3000);
+                  setTimeout(() => setNotification(null), 4000);
                 }}
-                className="w-full sm:flex-1 py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all"
+                className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center justify-center gap-2 shadow-md shadow-emerald-600/30 transition-all cursor-pointer"
               >
-                <Copy className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Salin Tautan Aktivasi</span>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Aktifkan Akun Sekarang (Langsung Jadi Tanpa Tunggu Email)</span>
               </button>
-
-              <Link
-                href={activationModalData.activationUrl}
-                target="_blank"
-                className="w-full sm:flex-1 py-2.5 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 transition-all"
-              >
-                <span>Buka Link (Simulasi)</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </Link>
             </div>
           </div>
         </div>

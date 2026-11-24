@@ -55,12 +55,30 @@ export default function PeternakDashboardPage() {
 
   useEffect(() => {
     setMounted(true);
-    const loaded = loadUsersFromStorage();
-    const activeId = getActiveUserId();
-    const activeUser = loaded.find((u) => u.id === activeId);
-    if (activeUser && activeUser.role === 'peternak') {
-      setCurrentUser(activeUser);
-    }
+    const syncUser = () => {
+      const loaded = loadUsersFromStorage();
+      setUsers(loaded);
+      const activeId = getActiveUserId();
+      let activeUser = loaded.find((u) => u.id === activeId && u.role === 'peternak');
+      if (!activeUser) {
+        activeUser = loaded.find((u) => u.role === 'peternak');
+      }
+      if (activeUser) {
+        setCurrentUser({ ...activeUser });
+      }
+    };
+
+    syncUser();
+
+    window.addEventListener('storage', syncUser);
+    window.addEventListener('focus', syncUser);
+    const poller = setInterval(syncUser, 2000);
+
+    return () => {
+      window.removeEventListener('storage', syncUser);
+      window.removeEventListener('focus', syncUser);
+      clearInterval(poller);
+    };
   }, []);
 
   // Side Menu State
