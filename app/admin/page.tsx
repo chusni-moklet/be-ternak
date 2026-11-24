@@ -283,14 +283,18 @@ export default function AdminDashboardPage() {
           id: 'users',
           label: 'Kelola Pengguna',
           icon: Users,
-          badge: `${users.filter((u) => u.role !== 'admin').length} Akun`,
+          badge: mounted ? `${users.filter((u) => u.role !== 'admin').length} Akun` : null,
           badgeColor: 'bg-slate-800 text-slate-300',
         },
         {
           id: 'feeds',
           label: 'Titik Pakan Spasial',
           icon: Layers,
-          badge: pendingFeeds.length > 0 ? `${pendingFeeds.length} Perlu Cek` : `${feedSources.length} Titik`,
+          badge: mounted
+            ? pendingFeeds.length > 0
+              ? `${pendingFeeds.length} Perlu Cek`
+              : `${feedSources.length} Titik`
+            : null,
           badgeColor:
             pendingFeeds.length > 0
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
@@ -508,7 +512,7 @@ export default function AdminDashboardPage() {
         {/* ================================================================= */}
         {/* MAIN CONTENT AREA (RIGHT)                                         */}
         {/* ================================================================= */}
-        <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 pb-20 lg:pb-6 space-y-6 max-w-7xl">
+        <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 pb-24 lg:pb-8 space-y-6 w-full">
           {/* Toast Notification */}
           {notification && (
             <div
@@ -861,7 +865,7 @@ export default function AdminDashboardPage() {
           {activeTab === 'verification' && (
             <div className="space-y-4">
               {/* Sub-tab Navigation: Pembayaran Langganan vs Pengajuan Pakan vs Verifikasi User */}
-              <div className="flex flex-wrap items-center gap-2 border-b border-emerald-950/80 pb-3">
+              <div className="flex items-center gap-2 border-b border-emerald-950/80 pb-3 overflow-x-auto no-scrollbar sm:flex-wrap">
                 <button
                   onClick={() => setVerificationSubTab('payments')}
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${

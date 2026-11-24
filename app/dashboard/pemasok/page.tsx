@@ -78,6 +78,11 @@ export default function PemasokDashboardPage() {
   // Side Menu State
   const [activeTab, setActiveTab] = useState<PemasokTab>('catalog');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Modal & Form State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -240,14 +245,14 @@ export default function PemasokDashboardPage() {
           id: 'catalog',
           label: 'Katalog Bahan Pakan',
           icon: Package,
-          badge: `${products.length} Produk`,
+          badge: mounted ? `${products.length} Produk` : null,
           badgeColor: 'bg-emerald-950 text-emerald-400 border border-emerald-500/20',
         },
         {
           id: 'stats',
           label: 'Statistik & Leads WA',
           icon: MessageCircle,
-          badge: `${totalLeads} Leads`,
+          badge: mounted ? `${totalLeads} Leads` : null,
           badgeColor: 'bg-teal-950 text-teal-300 border border-teal-500/30',
         },
       ],
@@ -501,7 +506,7 @@ export default function PemasokDashboardPage() {
         {/* ================================================================= */}
         {/* MAIN CONTENT AREA (RIGHT)                                         */}
         {/* ================================================================= */}
-        <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 pb-20 lg:pb-6 space-y-6 max-w-7xl">
+        <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 pb-24 lg:pb-8 space-y-6 w-full">
           {/* Feedback Notice */}
           {feedbackNotice && (
             <div className="p-4 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 flex items-center justify-between text-xs sm:text-sm font-medium shadow-lg">

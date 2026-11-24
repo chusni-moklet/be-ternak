@@ -502,7 +502,7 @@ export default function LayerSimulationPage() {
           id: 'recipes',
           label: 'Resep Ransum AI',
           icon: BookOpen,
-          badge: `${savedRansums.length} Resep`,
+          badge: isMounted ? `${savedRansums.length} Resep` : null,
           badgeColor: 'bg-emerald-950 text-emerald-400 border border-emerald-500/20',
           href: '/dashboard/peternak',
         },
@@ -708,7 +708,7 @@ export default function LayerSimulationPage() {
         {/* ================================================================= */}
         {/* MAIN SIMULATOR CONTENT                                            */}
         {/* ================================================================= */}
-        <main className="flex-1 h-full overflow-y-auto p-4 sm:p-6 lg:p-8 pb-20 lg:pb-8 space-y-6">
+        <main className="flex-1 h-full overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 space-y-6 w-full">
           
           {/* Breadcrumb & Actions Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

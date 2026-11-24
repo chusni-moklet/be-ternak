@@ -463,11 +463,14 @@ export function loadUsersFromStorage(): UserProfile[] {
       localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(merged));
       return merged;
     } else {
-      // Pastikan email & password admin selalu terupdate sesuai instruksi
+      // Pastikan nama, email & password admin selalu terupdate sesuai instruksi
+      users[adminIndex].name = 'Administrator be-ternak';
+      users[adminIndex].business_name = 'be-ternak Central Administration';
       users[adminIndex].email = 'chusniarin12@gmail.com';
       users[adminIndex].password = 'skylandO2';
       users[adminIndex].is_verified = true;
       users[adminIndex].role = 'admin';
+      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
       return users;
     }
   } catch {
@@ -590,7 +593,22 @@ export function loadTransactionsFromStorage(): SubscriptionTransaction[] {
       localStorage.setItem(STORAGE_KEY_TXS, JSON.stringify(INITIAL_TRANSACTIONS));
       return INITIAL_TRANSACTIONS;
     }
-    return JSON.parse(raw);
+    let txs: SubscriptionTransaction[] = JSON.parse(raw);
+    let changed = false;
+    txs = txs.map((t) => {
+      if (t.notes && t.notes.includes('PetaPakan')) {
+        changed = true;
+        return {
+          ...t,
+          notes: t.notes.replace(/PetaPakan AI/g, 'be-ternak AI').replace(/PetaPakan/g, 'be-ternak'),
+        };
+      }
+      return t;
+    });
+    if (changed) {
+      localStorage.setItem(STORAGE_KEY_TXS, JSON.stringify(txs));
+    }
+    return txs;
   } catch {
     return INITIAL_TRANSACTIONS;
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/ui/Navbar';
 import {
@@ -53,6 +53,11 @@ export default function PeternakDashboardPage() {
     );
   });
   const [savedRansums, setSavedRansums] = useState<SavedRansum[]>(() => loadSavedRansumsFromStorage());
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Side Menu State
   const [activeTab, setActiveTab] = useState<PeternakTab>('overview');
@@ -168,7 +173,7 @@ export default function PeternakDashboardPage() {
           id: 'recipes',
           label: 'Resep Ransum AI',
           icon: BookOpen,
-          badge: `${savedRansums.length} Resep`,
+          badge: mounted ? `${savedRansums.length} Resep` : null,
           badgeColor: 'bg-emerald-950 text-emerald-400 border border-emerald-500/20',
         },
         {
@@ -474,7 +479,7 @@ export default function PeternakDashboardPage() {
         {/* ================================================================= */}
         {/* MAIN CONTENT AREA (RIGHT)                                         */}
         {/* ================================================================= */}
-        <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 pb-20 lg:pb-6 space-y-6 max-w-7xl">
+        <main className="flex-1 h-full overflow-y-auto px-4 sm:px-8 py-6 pb-24 lg:pb-8 space-y-6 w-full">
           {/* Toast Feedback */}
           {feedbackNotice && (
             <div className="p-4 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 flex items-center justify-between text-xs sm:text-sm font-medium shadow-lg">
