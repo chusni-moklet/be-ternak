@@ -455,27 +455,32 @@ export default function PemasokDashboardPage() {
                   <ExternalLink className="w-3.5 h-3.5 opacity-60" />
                 </Link>
 
-                <Link
-                  href="/dashboard/peternak"
-                  className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-900/60 transition-all"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Users className="w-4 h-4 text-teal-400" />
-                    <span>Portal Peternak</span>
-                  </div>
-                  <ExternalLink className="w-3.5 h-3.5 opacity-60" />
-                </Link>
+                {/* Khusus Admin Platform */}
+                {currentUser?.role === 'admin' && (
+                  <>
+                    <Link
+                      href="/dashboard/peternak"
+                      className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-900/60 transition-all"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Users className="w-4 h-4 text-teal-400" />
+                        <span>Portal Peternak</span>
+                      </div>
+                      <ExternalLink className="w-3.5 h-3.5 opacity-60" />
+                    </Link>
 
-                <Link
-                  href="/admin"
-                  className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-900/60 transition-all"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    <span>Panel Admin</span>
-                  </div>
-                  <ExternalLink className="w-3.5 h-3.5 opacity-60" />
-                </Link>
+                    <Link
+                      href="/admin"
+                      className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-900/60 transition-all"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                        <span>Panel Admin</span>
+                      </div>
+                      <ExternalLink className="w-3.5 h-3.5 opacity-60" />
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </div>

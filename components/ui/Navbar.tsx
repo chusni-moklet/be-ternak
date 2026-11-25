@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -99,6 +99,34 @@ export default function Navbar({
     },
   ];
 
+  // Filter menu navigasi sesuai peran akun (Peternak, Pemilik Pakan, atau Admin)
+  const filteredNavLinks = useMemo(() => {
+    // 1. Akun Peternak: menu "Pemilik Pakan" dan "Panel Admin" HILANG
+    if (activeUser?.role === 'peternak') {
+      return navLinks.filter(
+        (item) => item.href !== '/dashboard/pemasok' && item.href !== '/admin'
+      );
+    }
+
+    // 2. Akun Pemilik Pakan: menu "Portal Peternak", "Simulasi Usaha", dan "Panel Admin" HILANG
+    if (activeUser?.role === 'pemilik_pakan') {
+      return navLinks.filter(
+        (item) =>
+          item.href !== '/dashboard/peternak' &&
+          item.href !== '/dashboard/peternak/simulasi' &&
+          item.href !== '/admin'
+      );
+    }
+
+    // 3. Akun Admin: tampilkan semua menu
+    if (activeUser?.role === 'admin') {
+      return navLinks;
+    }
+
+    // 4. Default / Belum Login: sembunyikan Panel Admin dari publik
+    return navLinks.filter((item) => item.href !== '/admin');
+  }, [activeUser]);
+
   return (
     <>
       <header className="h-16 border-b border-emerald-950/60 bg-[#070d0b]/95 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between shrink-0 z-30 sticky top-0">
@@ -126,8 +154,11 @@ export default function Navbar({
 
         {/* Desktop Main Navigation Links (Center) - Disembunyikan di Halaman Login / Auth */}
         {!isAuthPage && (
-          <nav className="hidden lg:flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-emerald-950/80">
-            {navLinks.map((item) => {
+          <nav
+            suppressHydrationWarning
+            className="hidden lg:flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-emerald-950/80"
+          >
+            {filteredNavLinks.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
               return (
@@ -309,11 +340,11 @@ export default function Navbar({
             )}
 
             {/* Navigation Links in Mobile Drawer */}
-            <div className="space-y-1.5 pt-1">
+            <div suppressHydrationWarning className="space-y-1.5 pt-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 block">
                 Navigasi Platform
               </span>
-              {navLinks.map((item) => {
+              {filteredNavLinks.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
                 return (
@@ -394,8 +425,11 @@ export default function Navbar({
       {/* ===================================================================== */}
       {/* MOBILE BOTTOM NAVIGATION BAR (Fixed Bottom - 1-Thumb Reachability)   */}
       {/* ===================================================================== */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#070d0b]/95 backdrop-blur-md border-t border-emerald-950/80 px-2 py-1.5 flex items-center justify-around shadow-2xl">
-        {navLinks.map((item) => {
+      <nav
+        suppressHydrationWarning
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#070d0b]/95 backdrop-blur-md border-t border-emerald-950/80 px-2 py-1.5 flex items-center justify-around shadow-2xl"
+      >
+        {filteredNavLinks.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
           return (
