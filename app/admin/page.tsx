@@ -11,6 +11,7 @@ import {
 import {
   loadTransactionsFromStorage,
   loadUsersFromStorage,
+  saveUsersToStorage,
   verifySubscriptionTransaction,
   toggleUserVerification,
   verifyUserInStorage,
@@ -63,6 +64,40 @@ export default function AdminDashboardPage() {
   // Sub-tab di Menu Verifikasi: 'payments' (Biaya Langganan) | 'feeds' (Pengajuan Bahan Pakan) | 'users' (Pendaftaran Pengguna Baru)
   const [verificationSubTab, setVerificationSubTab] = useState<'payments' | 'feeds' | 'users'>('payments');
 
+  // Sinkronisasi data pengguna dari Cloud Database (Supabase) via /api/users
+  const syncUsersFromCloud = async () => {
+    try {
+      const res = await fetch('/api/users');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          const localUsers = loadUsersFromStorage();
+          const emailMap: Record<string, UserProfile> = {};
+          localUsers.forEach((u) => {
+            emailMap[u.email.toLowerCase()] = u;
+          });
+          data.data.forEach((u: UserProfile) => {
+            const cleanEmail = (u.email || '').toLowerCase().trim();
+            if (cleanEmail) {
+              const existing = emailMap[cleanEmail];
+              emailMap[cleanEmail] = {
+                ...existing,
+                ...u,
+              };
+            }
+          });
+          const merged = Object.values(emailMap);
+          setUsers(merged);
+          saveUsersToStorage(merged);
+          return merged;
+        }
+      }
+    } catch (err) {
+      console.warn('[Admin] Sync users from cloud notice:', err);
+    }
+    return null;
+  };
+
   // SSR hydration safety
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -70,6 +105,7 @@ export default function AdminDashboardPage() {
     setTransactions([...loadTransactionsFromStorage()]);
     setUsers([...loadUsersFromStorage()]);
     setFeedSources([...loadFeedSourcesFromStorage()]);
+    syncUsersFromCloud();
   }, []);
 
   // Mobile Side Menu Open/Close
@@ -92,16 +128,17 @@ export default function AdminDashboardPage() {
   const [notification, setNotification] = useState<{ type: 'success' | 'info'; message: string } | null>(null);
 
   // Manual refresh helper
-  const refreshData = () => {
+  const refreshData = async () => {
     const loadedTxs = loadTransactionsFromStorage();
     const loadedUsers = loadUsersFromStorage();
     const loadedFeeds = loadFeedSourcesFromStorage();
     setTransactions([...loadedTxs]);
     setUsers([...loadedUsers]);
     setFeedSources([...loadedFeeds]);
+    await syncUsersFromCloud();
     setNotification({
       type: 'info',
-      message: 'Data transaksi, pengguna, dan titik pakan berhasil disinkronisasi.',
+      message: 'Data transaksi, pengguna, dan titik pakan berhasil disinkronisasi dengan Supabase Cloud.',
     });
     setTimeout(() => setNotification(null), 3000);
   };
@@ -148,10 +185,18 @@ export default function AdminDashboardPage() {
   };
 
   // Handler Toggle Verifikasi User Manual
-  const handleToggleUser = (userId: string) => {
+  const handleToggleUser = async (userId: string) => {
     try {
-      const updated = toggleUserVerification(userId, 'Budi Santoso, S.Pt (Admin)');
+      const updated = toggleUserVerification(userId, 'Administrator be-ternak');
       refreshData();
+
+      // Sinkronkan ke cloud database Supabase
+      fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      }).catch((e) => console.warn('Gagal sync ke /api/users:', e));
+
       setNotification({
         type: 'success',
         message: `Status verifikasi ${updated.name} diubah menjadi: ${
@@ -226,6 +271,13 @@ export default function AdminDashboardPage() {
       const updated = verifyUserInStorage(userId, approve, 'Administrator be-ternak');
       const loadedUsers = loadUsersFromStorage();
       setUsers([...loadedUsers]);
+
+      // Sinkronkan ke cloud database Supabase
+      fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      }).catch((e) => console.warn('Gagal sync ke /api/users:', e));
 
       if (approve) {
         const activationUrl = getActivationUrl(updated);
@@ -2222,6 +2274,14 @@ export default function AdminDashboardPage() {
                   const updated = toggleUserVerification(activationModalData.user.id);
                   setUsers([...loadUsersFromStorage()]);
                   setActivationModalData(null);
+
+                  // Sinkronkan ke cloud database Supabase
+                  fetch('/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updated),
+                  }).catch((e) => console.warn('Gagal sync ke /api/users:', e));
+
                   setNotification({
                     type: 'success',
                     message: `Akun "${updated.name}" (${updated.business_name}) berhasil diaktifkan langsung!`,

@@ -77,22 +77,43 @@ export async function upsertUserOnServer(user: UserProfile): Promise<UserProfile
 
     saveUsersToServer(users);
 
-    // Sync dengan Supabase jika aktif
+    // Sync dengan Supabase jika aktif (Pastikan kolom sesuai skema Supabase PostgreSQL)
     if (isSupabaseConfigured && supabaseAdmin) {
       try {
-        await supabaseAdmin.from('users_profile').upsert({
-          id: user.id,
+        const toUuid = (id: string) => {
+          if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return id;
+          let hash = 0;
+          for (let i = 0; i < id.length; i++) {
+            hash = (hash << 5) - hash + id.charCodeAt(i);
+            hash |= 0;
+          }
+          const hex = Math.abs(hash).toString(16).padStart(8, '0');
+          return `00000000-0000-4000-8000-${hex.padEnd(12, '0')}`;
+        };
+
+        const supabasePayload: Record<string, unknown> = {
+          id: toUuid(user.id || user.email),
           name: user.name,
           email: user.email,
           phone: user.phone,
           role: user.role,
           business_name: user.business_name,
           location_address: user.location_address,
-          is_verified: user.is_verified,
-          admin_verified: user.admin_verified,
-          activation_token: user.activation_token,
-          subscription_status: user.subscription_status,
-        }, { onConflict: 'id' });
+          lat: user.lat,
+          lng: user.lng,
+          livestock_types: user.livestock_types,
+          poultry_capacity: user.poultry_capacity,
+          feed_materials: user.feed_materials,
+          supply_capacity_ton_month: user.supply_capacity_ton_month,
+          subscription_status: user.subscription_status || 'pending_verification',
+          subscription_plan: user.subscription_plan || 'free',
+          subscription_paid_amount: user.subscription_paid_amount || 0,
+          is_verified: user.is_verified || false,
+          verified_at: user.verified_at,
+          verified_by: user.verified_by,
+        };
+
+        await supabaseAdmin.from('users_profile').upsert(supabasePayload, { onConflict: 'email' });
       } catch (e) {
         console.warn('[server-user-store] Supabase upsert notice:', e);
       }
@@ -131,22 +152,37 @@ export async function activateUserOnServer(
     userIndex = users.findIndex((u) => u.activation_token === token);
   }
 
-  // 4. Jika di server JSON belum ketemu, coba cari di Supabase
-  if (userIndex === -1 && isSupabaseConfigured && supabaseAdmin) {
+  // 4. Jika di server JSON belum ketemu, coba cari di Supabase berdasarkan email
+  if (userIndex === -1 && cleanEmail && isSupabaseConfigured && supabaseAdmin) {
     try {
-      let query = supabaseAdmin.from('users_profile').select('*');
-      if (cleanEmail) {
-        query = query.eq('email', cleanEmail);
-      } else if (token) {
-        query = query.eq('activation_token', token);
-      }
-      const { data } = await query.limit(1);
+      const { data } = await supabaseAdmin
+        .from('users_profile')
+        .select('*')
+        .eq('email', cleanEmail)
+        .limit(1);
       if (data && data.length > 0) {
-        const found = data[0] as UserProfile;
-        users.unshift(found);
+        const found = data[0] as any;
+        const mappedUser: UserProfile = {
+          ...found,
+          id: found.id || `usr-${Date.now()}`,
+          name: found.name || 'Pengguna be-ternak',
+          email: found.email,
+          role: found.role || 'peternak',
+          business_name: found.business_name || found.name,
+          location_address: found.location_address || '',
+          lat: found.lat ?? -8.1283,
+          lng: found.lng ?? 112.2181,
+          subscription_status: found.subscription_status || 'pending_verification',
+          is_verified: Boolean(found.is_verified),
+          admin_verified: Boolean(found.is_verified || found.subscription_status === 'active' || true),
+          created_at: found.created_at || new Date().toISOString(),
+        };
+        users.unshift(mappedUser);
         userIndex = 0;
       }
-    } catch {}
+    } catch (e) {
+      console.warn('[activateUserOnServer] Supabase lookup notice:', e);
+    }
   }
 
   if (userIndex === -1) {
@@ -174,19 +210,8 @@ export async function activateUserOnServer(
   users[userIndex] = user;
   saveUsersToServer(users);
 
-  // Sync Supabase
-  if (isSupabaseConfigured && supabaseAdmin) {
-    try {
-      await supabaseAdmin.from('users_profile').upsert({
-        id: user.id,
-        is_verified: true,
-        admin_verified: true,
-        subscription_status: 'active',
-        email_verified_at: user.email_verified_at,
-        verified_at: user.verified_at,
-      }, { onConflict: 'id' });
-    } catch {}
-  }
+  // Sync Supabase via upsertUserOnServer
+  await upsertUserOnServer(user);
 
   return {
     success: true,

@@ -1,16 +1,19 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Navbar from '@/components/ui/Navbar';
 import {
   loginUser,
   registerUser,
+  loadUsersFromStorage,
+  saveUsersToStorage,
 } from '@/lib/subscription-store';
 import {
   UserRole,
   LivestockType,
+  UserProfile,
 } from '@/lib/types';
 import {
   ShieldCheck,
@@ -68,6 +71,28 @@ function LoginRegisterContent() {
   const [regSupplyCapacity, setRegSupplyCapacity] = useState('25');
   const [regFeedMaterials, setRegFeedMaterials] = useState('Dedak Padi Halus & Ampas Tahu');
 
+  // Sinkronisasi data pengguna dari Cloud Database (Supabase) saat membuka halaman login
+  useEffect(() => {
+    fetch('/api/users')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.data)) {
+          const localUsers = loadUsersFromStorage();
+          const emailMap = new Map<string, UserProfile>();
+          localUsers.forEach((u) => emailMap.set(u.email.toLowerCase(), u));
+          data.data.forEach((u: UserProfile) => {
+            const cleanEmail = (u.email || '').toLowerCase().trim();
+            if (cleanEmail) {
+              const existing = emailMap.get(cleanEmail);
+              emailMap.set(cleanEmail, { ...existing, ...u });
+            }
+          });
+          saveUsersToStorage(Array.from(emailMap.values()));
+        }
+      })
+      .catch((e) => console.warn('Sync /api/users notice:', e));
+  }, []);
+
   // Handle Quick Demo Account Autofill
   const handleQuickLogin = (email: string, pass: string) => {
     setLoginEmail(email);
@@ -76,14 +101,38 @@ function LoginRegisterContent() {
   };
 
   // Submit Login
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
     setIsLoading(true);
 
     try {
-      const user = loginUser(loginEmail, loginPassword);
+      let user: UserProfile;
+      try {
+        user = loginUser(loginEmail, loginPassword);
+      } catch (localErr) {
+        // Fallback: sync dari cloud database Supabase jika akun baru didaftarkan di perangkat lain
+        const res = await fetch('/api/users');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          const localUsers = loadUsersFromStorage();
+          const emailMap = new Map<string, UserProfile>();
+          localUsers.forEach((u) => emailMap.set(u.email.toLowerCase(), u));
+          data.data.forEach((u: UserProfile) => {
+            const cleanEmail = (u.email || '').toLowerCase().trim();
+            if (cleanEmail) {
+              const existing = emailMap.get(cleanEmail);
+              emailMap.set(cleanEmail, { ...existing, ...u });
+            }
+          });
+          saveUsersToStorage(Array.from(emailMap.values()));
+          user = loginUser(loginEmail, loginPassword);
+        } else {
+          throw localErr;
+        }
+      }
+
       setSuccessMessage(`Selamat datang kembali, ${user.name}! Mengalihkan ke dashboard...`);
 
       setTimeout(() => {
@@ -133,6 +182,13 @@ function LoginRegisterContent() {
         supply_capacity_ton_month: registerRole === 'pemilik_pakan' ? Number(regSupplyCapacity) || 10 : undefined,
         feed_materials: registerRole === 'pemilik_pakan' ? regFeedMaterials.split(',').map((s) => s.trim()) : undefined,
       });
+
+      // Sinkronkan akun baru ke Cloud Database (Supabase) secara instan
+      fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser),
+      }).catch((e) => console.warn('Gagal sync registrasi ke cloud Supabase:', e));
 
       setSuccessMessage(
         `Registrasi berhasil! Akun "${newUser.business_name}" telah didaftarkan dan masuk ke antrean verifikasi Admin.`

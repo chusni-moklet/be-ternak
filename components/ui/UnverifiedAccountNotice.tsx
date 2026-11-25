@@ -8,6 +8,7 @@ import {
   getActivationUrl,
   logoutUser,
   loadUsersFromStorage,
+  saveUsersToStorage,
   sendActivationEmailApi,
 } from '@/lib/subscription-store';
 import {
@@ -45,25 +46,55 @@ export default function UnverifiedAccountNotice({
     setCurrentUserState(user);
   }, [user]);
 
-  // Real-time synchronization: deteksi jika status akun berubah di tab lain atau setelah email diklik
+  // Real-time synchronization: deteksi jika status akun berubah di Supabase, tab lain, atau setelah email diklik
   useEffect(() => {
-    const checkFreshStatus = () => {
+    const checkFreshStatus = async () => {
+      // 1. Cek dari storage lokal terlebih dahulu
       const allUsers = loadUsersFromStorage();
       const updated = allUsers.find(
         (u) => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase()
       );
       if (updated) {
         setCurrentUserState(updated);
-        // Jika akun telah aktif, otomatis refresh halaman untuk menampilkan dashboard aktif
         if (updated.is_verified) {
           window.location.reload();
+          return;
         }
       }
+
+      // 2. Cek update status dari Cloud Database (Supabase) via /api/users
+      try {
+        const res = await fetch('/api/users');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.data)) {
+            const fresh = data.data.find(
+              (u: UserProfile) => u.email.toLowerCase() === user.email.toLowerCase()
+            );
+            if (fresh) {
+              const currentList = loadUsersFromStorage();
+              const idx = currentList.findIndex(
+                (u) => u.email.toLowerCase() === user.email.toLowerCase()
+              );
+              if (idx >= 0) {
+                currentList[idx] = { ...currentList[idx], ...fresh };
+              } else {
+                currentList.unshift(fresh);
+              }
+              saveUsersToStorage(currentList);
+              setCurrentUserState(currentList[idx >= 0 ? idx : 0]);
+              if (fresh.is_verified) {
+                window.location.reload();
+              }
+            }
+          }
+        }
+      } catch {}
     };
 
     window.addEventListener('storage', checkFreshStatus);
     window.addEventListener('focus', checkFreshStatus);
-    const poller = setInterval(checkFreshStatus, 2000);
+    const poller = setInterval(checkFreshStatus, 3000);
 
     return () => {
       window.removeEventListener('storage', checkFreshStatus);
@@ -76,7 +107,37 @@ export default function UnverifiedAccountNotice({
   const isAccountActive = Boolean(currentUserState.is_verified);
   const activationUrl = getActivationUrl(currentUserState);
 
-  const handleManualRefresh = () => {
+  const handleManualRefresh = async () => {
+    // Tarik status terbaru langsung dari Cloud Database (Supabase)
+    try {
+      const res = await fetch('/api/users');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          const fresh = data.data.find(
+            (u: UserProfile) => u.email.toLowerCase() === user.email.toLowerCase()
+          );
+          if (fresh) {
+            const currentList = loadUsersFromStorage();
+            const idx = currentList.findIndex(
+              (u) => u.email.toLowerCase() === user.email.toLowerCase()
+            );
+            if (idx >= 0) {
+              currentList[idx] = { ...currentList[idx], ...fresh };
+            } else {
+              currentList.unshift(fresh);
+            }
+            saveUsersToStorage(currentList);
+            setCurrentUserState(currentList[idx >= 0 ? idx : 0]);
+            if (fresh.is_verified) {
+              window.location.reload();
+              return;
+            }
+          }
+        }
+      }
+    } catch {}
+
     const allUsers = loadUsersFromStorage();
     const updated = allUsers.find(
       (u) => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase()
