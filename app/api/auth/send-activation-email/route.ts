@@ -22,24 +22,28 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     // Simpan data pendaftar & token ke server-side store agar bisa diaktivasi dari browser/perangkat apa pun
-    if (user) {
-      await upsertUserOnServer({
-        ...user,
-        email: to,
-        admin_verified: true,
-        activation_token: token || user.activation_token,
-      });
-    } else {
-      await upsertUserOnServer({
-        id: body.userId || `usr-${Date.now()}`,
-        name: name || 'Pengguna be-ternak',
-        email: to,
-        business_name: businessName || name,
-        role: body.role || 'peternak',
-        admin_verified: true,
-        is_verified: false,
-        activation_token: token,
-      } as any);
+    try {
+      if (user) {
+        await upsertUserOnServer({
+          ...user,
+          email: to,
+          admin_verified: true,
+          activation_token: token || user.activation_token,
+        });
+      } else {
+        await upsertUserOnServer({
+          id: body.userId || `usr-${Date.now()}`,
+          name: name || 'Pengguna be-ternak',
+          email: to,
+          business_name: businessName || name,
+          role: body.role || 'peternak',
+          admin_verified: true,
+          is_verified: false,
+          activation_token: token,
+        } as any);
+      }
+    } catch (storeErr) {
+      console.warn('[send-activation-email] Server user store warning (continuing email dispatch):', storeErr);
     }
 
     const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
