@@ -277,15 +277,11 @@ export function saveUsersToStorage(users: UserProfile[]) {
 }
 
 export function getActiveUser(): UserProfile | null {
-  const users = loadUsersFromStorage();
+  if (typeof window === 'undefined') return null;
   const activeId = getActiveUserId();
-  return (
-    users.find((u) => u.id === activeId) ||
-    users.find((u) => u.role === 'peternak') ||
-    users.find((u) => u.role === 'pemilik_pakan') ||
-    users[0] ||
-    null
-  );
+  if (!activeId) return null;
+  const users = loadUsersFromStorage();
+  return users.find((u) => u.id === activeId) || null;
 }
 
 export function registerUser(payload: RegisterPayload): UserProfile {
@@ -437,11 +433,11 @@ export function saveRansumsToStorage(ransums: SavedRansum[]) {
 }
 
 export function getActiveUserId(): string {
-  if (typeof window === 'undefined') return 'usr-admin-01';
+  if (typeof window === 'undefined') return '';
   try {
-    return localStorage.getItem(STORAGE_KEY_ACTIVE_USER) || 'usr-admin-01';
+    return localStorage.getItem(STORAGE_KEY_ACTIVE_USER) || '';
   } catch {
-    return 'usr-admin-01';
+    return '';
   }
 }
 

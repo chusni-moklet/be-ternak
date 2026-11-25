@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Navbar from '@/components/ui/Navbar';
 import {
   UserProfile,
@@ -12,6 +13,7 @@ import {
 } from '@/lib/types';
 import {
   loadUsersFromStorage,
+  getActiveUser,
   getActiveUserId,
   submitSubscriptionPayment,
   loadFeedSourcesFromStorage,
@@ -78,20 +80,24 @@ export default function PemasokDashboardPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  const router = useRouter();
+
   useEffect(() => {
     setMounted(true);
     const syncSupplier = () => {
+      const active = getActiveUser();
+      if (!active) {
+        router.replace('/login');
+        return;
+      }
+      if (active.role !== 'pemilik_pakan' && active.role !== 'admin') {
+        router.replace('/login');
+        return;
+      }
       const loadedUsers = loadUsersFromStorage();
       setUsers(loadedUsers);
-      const activeId = getActiveUserId();
-      let supplier = loadedUsers.find((u) => u.id === activeId && u.role === 'pemilik_pakan');
-      if (!supplier) {
-        supplier = loadedUsers.find((u) => u.role === 'pemilik_pakan') || DEFAULT_SUPPLIER_PROFILE;
-      }
-      if (supplier) {
-        setCurrentUser({ ...supplier });
-        setProducts(loadProductsForSupplier(supplier.id));
-      }
+      setCurrentUser({ ...active });
+      setProducts(loadProductsForSupplier(active.id));
     };
 
     syncSupplier();

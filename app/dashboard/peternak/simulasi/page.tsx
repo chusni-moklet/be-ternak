@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useSyncExternalStore } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Navbar from '@/components/ui/Navbar';
 import {
   UserProfile,
@@ -11,6 +12,7 @@ import {
 import {
   loadUsersFromStorage,
   loadSavedRansumsFromStorage,
+  getActiveUser,
   getActiveUserId,
   setActiveUserId,
   loadSimulationScenariosFromStorage,
@@ -79,21 +81,25 @@ export default function LayerSimulationPage() {
     () => false
   );
 
+  const router = useRouter();
+
   useEffect(() => {
     setMounted(true);
     const syncUser = () => {
+      const active = getActiveUser();
+      if (!active) {
+        router.replace('/login');
+        return;
+      }
+      if (active.role !== 'peternak' && active.role !== 'admin') {
+        router.replace('/login');
+        return;
+      }
       const loaded = loadUsersFromStorage();
       setUsers(loaded);
-      const activeId = getActiveUserId();
-      let activeUser = loaded.find((u) => u.id === activeId && u.role === 'peternak');
-      if (!activeUser) {
-        activeUser = loaded.find((u) => u.role === 'peternak');
-      }
-      if (activeUser) {
-        setCurrentUser({ ...activeUser });
-        if (activeUser.poultry_capacity) {
-          setPopulasiAwal(activeUser.poultry_capacity);
-        }
+      setCurrentUser({ ...active });
+      if (active.poultry_capacity) {
+        setPopulasiAwal(active.poultry_capacity);
       }
     };
 

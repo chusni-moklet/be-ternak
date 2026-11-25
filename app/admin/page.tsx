@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Navbar from '@/components/ui/Navbar';
 import {
   SubscriptionTransaction,
@@ -12,6 +13,7 @@ import {
   loadTransactionsFromStorage,
   loadUsersFromStorage,
   saveUsersToStorage,
+  getActiveUser,
   verifySubscriptionTransaction,
   toggleUserVerification,
   verifyUserInStorage,
@@ -98,15 +100,24 @@ export default function AdminDashboardPage() {
     return null;
   };
 
-  // SSR hydration safety
+  const router = useRouter();
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+
+  // SSR hydration safety & Authentication check
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
+    const active = getActiveUser();
+    if (!active || active.role !== 'admin') {
+      router.replace('/login');
+      return;
+    }
+    setIsAdminAuthenticated(true);
     setTransactions([...loadTransactionsFromStorage()]);
     setUsers([...loadUsersFromStorage()]);
     setFeedSources([...loadFeedSourcesFromStorage()]);
     syncUsersFromCloud();
-  }, []);
+  }, [router]);
 
   // Mobile Side Menu Open/Close
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -496,6 +507,15 @@ export default function AdminDashboardPage() {
       ],
     },
   ];
+
+  if (!mounted || !isAdminAuthenticated) {
+    return (
+      <div className="h-screen bg-[#070d0b] flex flex-col items-center justify-center text-slate-400 text-sm gap-3">
+        <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+        <p className="font-medium text-slate-300">Memeriksa otentikasi administrator be-ternak...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-[#070d0b] text-slate-100 flex flex-col font-sans overflow-hidden">

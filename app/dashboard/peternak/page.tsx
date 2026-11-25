@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Navbar from '@/components/ui/Navbar';
 import {
   UserProfile,
@@ -13,6 +14,7 @@ import {
   loadUsersFromStorage,
   loadSavedRansumsFromStorage,
   submitSubscriptionPayment,
+  getActiveUser,
   getActiveUserId,
   setActiveUserId,
   DEFAULT_FARMER_PROFILE,
@@ -49,20 +51,23 @@ export default function PeternakDashboardPage() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(DEFAULT_FARMER_PROFILE);
   const [savedRansums, setSavedRansums] = useState<SavedRansum[]>(() => loadSavedRansumsFromStorage());
   const [mounted, setMounted] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     setMounted(true);
     const syncUser = () => {
+      const active = getActiveUser();
+      if (!active) {
+        router.replace('/login');
+        return;
+      }
+      if (active.role !== 'peternak' && active.role !== 'admin') {
+        router.replace('/login');
+        return;
+      }
       const loaded = loadUsersFromStorage();
       setUsers(loaded);
-      const activeId = getActiveUserId();
-      let activeUser = loaded.find((u) => u.id === activeId && u.role === 'peternak');
-      if (!activeUser) {
-        activeUser = loaded.find((u) => u.role === 'peternak');
-      }
-      if (activeUser) {
-        setCurrentUser({ ...activeUser });
-      }
+      setCurrentUser({ ...active });
     };
 
     syncUser();

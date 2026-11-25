@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useSyncExternalStore, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Navbar from '@/components/ui/Navbar';
 import {
   UserProfile,
@@ -17,6 +18,7 @@ import {
   INITIAL_USERS,
   DEFAULT_FARMER_PROFILE,
   loadUsersFromStorage,
+  getActiveUser,
   getActiveUserId,
   setActiveUserId,
   loadSavedRansumsFromStorage,
@@ -154,6 +156,8 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
   // Table filter query
   const [searchTableQuery, setSearchTableQuery] = useState('');
 
+  const router = useRouter();
+
   // 6. Inisialisasi Data berdasarkan Akun Peternak
   useEffect(() => {
     setMounted(true);
@@ -163,19 +167,23 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
       setNewKandangDate(today);
     } catch {}
 
-    const loadedUsers = loadUsersFromStorage();
-    setUsers(loadedUsers);
-    const activeId = getActiveUserId();
-    const activeUser = loadedUsers.find((u) => u.id === activeId);
-    const userToUse =
-      activeUser && activeUser.role === 'peternak'
-        ? activeUser
-        : loadedUsers.find((u) => u.role === 'peternak') || DEFAULT_FARMER_PROFILE;
+    const syncUser = () => {
+      const active = getActiveUser();
+      if (!active) {
+        router.replace('/login');
+        return;
+      }
+      if (active.role !== 'peternak' && active.role !== 'admin') {
+        router.replace('/login');
+        return;
+      }
 
-    if (userToUse) {
-      setCurrentUser(userToUse);
-      const loadedUnits = loadKandangUnits(userToUse.id);
-      const loadedLogs = loadDailyRecordings(userToUse.id);
+      const freshUsers = loadUsersFromStorage();
+      setUsers(freshUsers);
+      setCurrentUser({ ...active });
+
+      const loadedUnits = loadKandangUnits(active.id);
+      const loadedLogs = loadDailyRecordings(active.id);
       const loadedRansums = loadSavedRansumsFromStorage();
 
       setKandangs(loadedUnits);
@@ -186,20 +194,9 @@ export default function DailyRecordingPage({ initialTab = 'recording' }: DailyRe
         setRecordKandangId(loadedUnits[0].id);
         setTargetKandangToDelete(loadedUnits[0].id);
       }
-    }
-
-    const syncUser = () => {
-      const freshUsers = loadUsersFromStorage();
-      setUsers(freshUsers);
-      const activeId = getActiveUserId();
-      let freshUser = freshUsers.find((u) => u.id === activeId && u.role === 'peternak');
-      if (!freshUser) {
-        freshUser = freshUsers.find((u) => u.role === 'peternak');
-      }
-      if (freshUser) {
-        setCurrentUser({ ...freshUser });
-      }
     };
+
+    syncUser();
 
     window.addEventListener('storage', syncUser);
     window.addEventListener('focus', syncUser);
